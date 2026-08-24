@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Luncho - Batch Box Labels</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Karla:wght@400;500;700&family=Spline+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#F7EFDE; --paper:#FFFDF8; --yolk:#EFA02E; --ink:#26221E;
+    --grey:#5C5240; --dash:#C9BBA0; --leaf:#33573B; --oxblood:#772C22;
+    --display:'Archivo Black','Arial Black',Impact,sans-serif;
+    --body:'Karla',system-ui,sans-serif;
+    --mono:'Spline Sans Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E9E4D6;color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;padding:18px 12px 40px}
+  .tool{max-width:840px;margin:0 auto}
+  .tool-head{background:var(--yolk);border-radius:8px 8px 0 0;padding:14px 20px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .wordmark{font-family:var(--display);font-size:24px}
+  .wordmark .dot{color:var(--cream)}
+  .tool-head small{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;text-align:right}
+  .panel{background:var(--cream);border-radius:0 0 8px 8px;padding:18px 20px 22px;box-shadow:0 8px 28px rgba(38,34,30,.14)}
+  .steps{font-size:13.5px;color:var(--grey);line-height:1.7}
+  .steps b{color:var(--ink);font-family:var(--mono);font-size:12px}
+  textarea{width:100%;margin-top:12px;height:150px;border:1px solid #C9C2AD;border-radius:6px;background:var(--paper);padding:10px;font-family:var(--mono);font-size:11px;color:var(--ink)}
+  textarea:focus{outline:3px solid var(--yolk)}
+  .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  .row label{font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.05em;display:flex;align-items:center;gap:6px;cursor:pointer}
+  .row select{font-family:var(--mono);font-size:12px;font-weight:700;border:1px solid #C9C2AD;border-radius:6px;background:var(--paper);padding:8px 10px;color:var(--ink);max-width:250px}
+  .btn{border:0;border-radius:6px;padding:12px 18px;font-family:var(--display);font-size:14px;cursor:pointer;background:var(--yolk);color:var(--ink)}
+  .btn.ink{background:var(--ink);color:var(--yolk)}
+  .msg{margin-top:10px;font-size:13px;color:var(--oxblood);font-weight:700;display:none}
+  .msg.show{display:block}
+  .summary{margin-top:16px;border:1px dashed var(--dash);border-radius:8px;background:var(--paper);padding:12px 14px;display:none}
+  .summary.show{display:block}
+  .summary h2{font-family:var(--mono);font-size:12px;letter-spacing:.1em}
+  .sum-grid{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-family:var(--mono);font-size:12.5px;font-weight:700}
+  .sum-grid span b{background:var(--ink);color:var(--cream);border-radius:4px;padding:2px 7px;margin-right:5px;font-size:11px}
+  .labels{margin:22px auto 0;max-width:840px;display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .label{background:var(--cream);border:1px dashed #9a8f78;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;break-inside:avoid;page-break-inside:avoid}
+  .lab-head{background:var(--yolk);padding:7px 12px;display:flex;justify-content:space-between;align-items:center}
+  .lab-head .lw{font-family:var(--display);font-size:15px}
+  .lab-head .lw i{font-style:normal;color:var(--cream)}
+  .lab-campus{font-family:var(--mono);font-size:13px;font-weight:700;background:var(--ink);color:var(--cream);border-radius:4px;padding:2px 8px}
+  .lab-body{padding:9px 12px 11px;flex:1;display:flex;flex-direction:column}
+  .lab-name{font-family:var(--display);font-size:18px;line-height:1.05;word-break:break-word}
+  .lab-id{font-family:var(--mono);font-size:13.5px;font-weight:700;margin-top:2px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+  .chip{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.05em;border-radius:4px;padding:2px 7px;color:var(--cream);display:inline-flex;align-items:center;gap:5px}
+  .chip.veg{background:var(--leaf)}
+  .chip.nonveg{background:var(--oxblood)}
+  .chip.box{background:var(--ink)}
+  .chip.warn{background:#fff;color:var(--oxblood);border:1.5px solid var(--oxblood)}
+  .fss{width:11px;height:11px;border:1.5px solid #fff;background:#fff;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .fss i{width:5px;height:5px;border-radius:50%}
+  .fss.veg i{background:var(--leaf)}
+  .fss.nonveg i{width:0;height:0;border-radius:0;border-left:3px solid transparent;border-right:3px solid transparent;border-bottom:5.5px solid var(--oxblood);background:none}
+  .comps{margin-top:8px;border-top:1px dashed var(--dash);padding-top:7px;display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;font-family:var(--mono);font-size:10.5px;font-weight:700;line-height:1.5}
+  .comps span b{color:var(--grey);margin-right:4px;font-weight:700}
+  .lab-foot{margin-top:auto;padding-top:7px;font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.03em;color:var(--grey)}
+  @media (max-width:560px){.labels{grid-template-columns:1fr}}
+  @media print{
+    body{background:#fff;padding:0;font-size:12px}
+    .tool{display:none}
+    .labels{max-width:none;gap:4mm;grid-template-columns:repeat(2,1fr)}
+    .label{border-radius:0;min-height:63mm}  /* 2 x 4 = 8 labels per A4 page */
+    @page{size:A4;margin:8mm}
+  }
+</style>
+</head>
+<body>
+<div class="tool">
+  <div class="tool-head">
+    <div class="wordmark">LUNCHO<span class="dot">.</span></div>
+    <small>BATCH BOX LABELS<br>OWNER TOOL</small>
+  </div>
+  <div class="panel">
+    <p class="steps">
+      <b>1</b> Open the <b>Orders_V2</b> sheet after verifying payments.
+      <b>2</b> Select tomorrow's rows - click the row numbers so entire rows are copied (the header row is fine to include).
+      <b>3</b> Copy (Ctrl+C), paste below, then <b>MAKE LABELS</b> and print (Ctrl+P). One label per box - qty 2 makes 2 labels.
+    </p>
+    <textarea id="paste" placeholder="Paste sheet rows here..." spellcheck="false"></textarea>
+    <div class="row">
+      <button class="btn" id="btn-make" type="button">MAKE LABELS</button>
+      <button class="btn ink" id="btn-print" type="button">PRINT</button>
+      <label><input type="checkbox" id="only-verified" checked> ONLY "VERIFIED" ROWS</label>
+    </div>
+    <div class="row" id="filter-row" hidden>
+      <label>COLLEGE <select id="f-campus"><option value="">ALL</option></select></label>
+      <label>TYPE <select id="f-base"><option value="">ALL</option></select></label>
+    </div>
+    <p class="msg" id="msg"></p>
+    <div class="summary" id="summary">
+      <h2>PACKING SUMMARY</h2>
+      <div class="sum-grid" id="sum-grid"></div>
+    </div>
+  </div>
+</div>
+<div class="labels" id="labels"></div>
+<script>
+const $ = id => document.getElementById(id);
+// Column order of Orders_V2 (see apps-script.gs HEADERS)
+const COLS = { orderId:1, date:2, name:3, college:5, campus:6, base:7, qty:8,
+  c1:10, c2:11, c3:12, c4:13, c5:15, c6:17, status:22 };
+const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+function parseRows(text){
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const rows = [];
+  for(const line of lines){
+    const cells = line.split('\t');
+    if(/^timestamp$/i.test((cells[0]||'').trim())) continue;            // header row
+    if(cells.length < COLS.status+1) continue;                           // partial copy
+    const qty = Math.max(1, parseInt(cells[COLS.qty],10) || 1);
+    rows.push({
+      orderId: cells[COLS.orderId].trim(), date: cells[COLS.date].trim(),
+      name: cells[COLS.name].trim(), college: cells[COLS.college].trim(),
+      campus: cells[COLS.campus].trim(), base: cells[COLS.base].trim(), qty,
+      comps: [cells[COLS.c1],cells[COLS.c2],cells[COLS.c3],cells[COLS.c4],cells[COLS.c5],cells[COLS.c6]].map(v=>String(v||'').trim()),
+      verified: /^verified$/i.test((cells[COLS.status]||'').trim())
+    });
+  }
+  return rows;
+}
+// Filters: to add more later (year / sem / branch once those columns exist),
+// add the column to COLS + parseRows, a <select> in #filter-row, and one entry here.
+const FILTERS = [
+  { sel:"f-campus", key:"campus" },
+  { sel:"f-base",   key:"base" }
+];
+function populateFilters(rows){
+  for(const f of FILTERS){
+    const el = $(f.sel), keep = el.value;
+    const values = [...new Set(rows.map(r=>r[f.key]))].sort();
+    el.innerHTML = `<option value="">ALL</option>` + values.map(v=>`<option value="${esc(v)}">${esc(v.toUpperCase())}</option>`).join("");
+    if(values.includes(keep)) el.value = keep;
+  }
+  $("filter-row").hidden = false;
+}
+function makeLabels(){
+  const all = parseRows($("paste").value);
+  const onlyV = $("only-verified").checked;
+  let rows = onlyV ? all.filter(r=>r.verified) : all;
+  const msg = $("msg");
+  msg.classList.remove("show");
+  if(!all.length){
+    msg.textContent = "Nothing usable pasted. In the sheet, click the row numbers to select entire rows, then copy.";
+    msg.classList.add("show");
+    $("labels").innerHTML=""; $("summary").classList.remove("show"); $("filter-row").hidden = true;
+    return;
+  }
+  if(!rows.length){
+    msg.textContent = `${all.length} row(s) pasted but none are marked Verified. Verify payments first, or untick the filter.`;
+    msg.classList.add("show");
+    $("labels").innerHTML=""; $("summary").classList.remove("show"); $("filter-row").hidden = true;
+    return;
+  }
+  populateFilters(rows);
+  for(const f of FILTERS){
+    const want = $(f.sel).value;
+    if(want) rows = rows.filter(r=>r[f.key]===want);
+  }
+  if(!rows.length){
+    msg.textContent = "No rows match the current COLLEGE / TYPE filters.";
+    msg.classList.add("show");
+    $("labels").innerHTML=""; $("summary").classList.remove("show");
+    return;
+  }
+  rows.sort((a,b)=> a.campus.localeCompare(b.campus) || a.base.localeCompare(b.base) || a.name.localeCompare(b.name));
+  const labels=[];
+  let boxes=0;
+  const perCampus={}, perBase={};
+  for(const r of rows){
+    for(let i=1;i<=r.qty;i++){
+      boxes++;
+      const cls = r.base.toLowerCase()==="veg" ? "veg" : "nonveg";
+      labels.push(`<div class="label">
+        <div class="lab-head"><span class="lw">LUNCHO<i>.</i></span><span class="lab-campus">${esc(r.campus)}</span></div>
+        <div class="lab-body">
+          <div class="lab-name">${esc(r.name.toUpperCase())}</div>
+          <div class="lab-id">No. ${esc(r.orderId)}</div>
+          <div class="chips">
+            <span class="chip ${cls}"><span class="fss ${cls}"><i></i></span>${esc(r.base.toUpperCase())}</span>
+            ${r.qty>1?`<span class="chip box">BOX ${i}/${r.qty}</span>`:""}
+            ${!r.verified?`<span class="chip warn">NOT VERIFIED</span>`:""}
+          </div>
+          <div class="comps">${r.comps.map((c,j)=>`<span><b>C${j+1}</b>${esc(c)}</span>`).join("")}</div>
+          <div class="lab-foot">${esc(r.date.toUpperCase())} - ${esc(r.college.toUpperCase())}</div>
+        </div>
+      </div>`);
+    }
+    perCampus[r.campus]=(perCampus[r.campus]||0)+r.qty;
+    perBase[r.base]=(perBase[r.base]||0)+r.qty;
+  }
+  $("labels").innerHTML = labels.join("");
+  $("sum-grid").innerHTML =
+    `<span><b>${rows.length}</b>orders</span><span><b>${boxes}</b>boxes</span>` +
+    Object.entries(perBase).map(([k,v])=>`<span><b>${v}</b>${esc(k)}</span>`).join("") +
+    Object.entries(perCampus).map(([k,v])=>`<span><b>${v}</b>${esc(k)}</span>`).join("");
+  $("summary").classList.add("show");
+}
+$("btn-make").addEventListener("click",makeLabels);
+FILTERS.forEach(f=>$(f.sel).addEventListener("change",makeLabels));
+$("only-verified").addEventListener("change",makeLabels);
+$("btn-print").addEventListener("click",()=>{ if(!$("labels").children.length) makeLabels(); if($("labels").children.length) window.print(); });
+</script>
+</body>
+</html>

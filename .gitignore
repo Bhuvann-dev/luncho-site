@@ -1,0 +1,5 @@
+# server code and ops docs stay local - only the student-facing pages are published
+apps-script.gs
+README.md
+review-*.png
+order-page-mobile.png
