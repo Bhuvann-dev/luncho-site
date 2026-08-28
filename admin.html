@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Luncho - Admin</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Karla:wght@400;500;700&family=Spline+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#F7EFDE; --paper:#FFFDF8; --yolk:#EFA02E; --ink:#26221E;
+    --grey:#5C5240; --dash:#C9BBA0; --leaf:#33573B; --oxblood:#772C22;
+    --display:'Archivo Black','Arial Black',Impact,sans-serif;
+    --body:'Karla',system-ui,sans-serif;
+    --mono:'Spline Sans Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E9E4D6;color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.4;padding-bottom:40px}
+  button,input,select{font:inherit;color:inherit}
+  .top{background:var(--yolk);padding:12px 14px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:20;box-shadow:0 2px 10px rgba(38,34,30,.15)}
+  .wordmark{font-family:var(--display);font-size:20px}
+  .wordmark i{font-style:normal;color:var(--cream)}
+  .top small{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.1em}
+  .wrap{max-width:680px;margin:0 auto;padding:12px}
+  .tabs{display:flex;gap:8px;margin-bottom:12px}
+  .tab{flex:1;border:1px solid #C9C2AD;border-radius:8px;background:var(--paper);padding:11px;font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.08em;cursor:pointer}
+  .tab.on{background:var(--ink);border-color:var(--ink);color:var(--yolk)}
+  .panel{background:var(--cream);border-radius:10px;padding:14px;box-shadow:0 4px 16px rgba(38,34,30,.10);margin-bottom:12px}
+  .hidden{display:none!important}
+  /* login */
+  #login input{width:100%;margin-top:8px;padding:13px;border:1px solid #C9C2AD;border-radius:8px;background:var(--paper);font-family:var(--mono)}
+  .btn{border:0;border-radius:8px;background:var(--yolk);font-family:var(--display);font-size:14px;padding:13px 16px;cursor:pointer;color:var(--ink)}
+  .btn.ink{background:var(--ink);color:var(--yolk)}
+  .btn.small{font-family:var(--mono);font-size:11px;font-weight:700;padding:9px 12px;letter-spacing:.05em}
+  .btn.ghost{background:var(--paper);border:1px solid #C9C2AD;color:var(--ink)}
+  .btn:disabled{opacity:.5}
+  .msg{color:var(--oxblood);font-weight:700;font-size:13px;margin-top:8px}
+  /* stats */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .stat{background:var(--paper);border:1px solid #C9C2AD;border-radius:8px;padding:8px 6px;text-align:center}
+  .stat b{display:block;font-family:var(--display);font-size:18px}
+  .stat span{font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.06em;color:var(--grey)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .chip{border:1px solid #C9C2AD;border-radius:20px;background:var(--paper);padding:7px 13px;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer}
+  .chip.on{background:var(--ink);border-color:var(--ink);color:var(--cream)}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  /* order card */
+  .card{background:var(--paper);border:1px solid #C9C2AD;border-radius:10px;padding:12px;margin-top:10px}
+  .card.cancelled{opacity:.5}
+  .card-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+  .card-top b{font-family:var(--display);font-size:16px}
+  .oid{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--grey)}
+  .tagrow{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+  .tag{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.04em;border-radius:4px;padding:3px 7px;background:var(--ink);color:var(--cream)}
+  .tag.veg{background:var(--leaf)} .tag.nonveg{background:var(--oxblood)}
+  .tag.amt{background:var(--yolk);color:var(--ink)}
+  .tag.ok{background:var(--leaf)} .tag.warn{background:#fff;color:var(--oxblood);border:1.5px solid var(--oxblood)}
+  .tag.dim{background:#EDE5D2;color:var(--grey)}
+  .picks{font-family:var(--mono);font-size:11px;color:var(--grey);margin-top:7px;line-height:1.6}
+  .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .act{border:1px solid #C9C2AD;border-radius:7px;background:var(--cream);font-family:var(--mono);font-size:11px;font-weight:700;padding:9px 11px;cursor:pointer;letter-spacing:.03em}
+  .act.primary{background:var(--yolk);border-color:var(--yolk)}
+  .act.done{background:var(--leaf);border-color:var(--leaf);color:#fff}
+  /* menu editor */
+  .sec{margin-top:14px}
+  .sec h2{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.1em;border-bottom:1px dashed var(--dash);padding-bottom:6px}
+  .mrow{background:var(--paper);border:1px solid #C9C2AD;border-radius:8px;padding:10px;margin-top:8px}
+  .mrow .grid{display:grid;grid-template-columns:1fr 84px;gap:6px}
+  .mrow input,.mrow select{padding:9px;border:1px solid #C9C2AD;border-radius:6px;background:#fff;font-size:14px;width:100%}
+  .mrow .note-in{grid-column:1/-1}
+  .mrow .foot{display:flex;gap:6px;align-items:center;margin-top:7px;flex-wrap:wrap}
+  .mrow label.sw{font-family:var(--mono);font-size:10.5px;font-weight:700;display:flex;gap:5px;align-items:center;margin-right:auto}
+  .slotlabel{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--grey);letter-spacing:.06em;margin-bottom:5px}
+  .addbar{display:flex;gap:6px;margin-top:8px}
+  .addbar input{flex:1;padding:10px;border:1px dashed var(--dash);border-radius:6px;background:transparent}
+  .savedflash{font-family:var(--mono);font-size:10px;color:var(--leaf);font-weight:700}
+  /* bill print */
+  #print-area{display:none}
+  @media print{
+    body>*{display:none!important}
+    #print-area{display:grid!important;grid-template-columns:1fr 1fr;gap:4mm}
+    .bill{border:1px dashed #999;padding:5mm;break-inside:avoid;page-break-inside:avoid;font-family:Arial,sans-serif;background:#fff}
+    @page{size:A4;margin:8mm}
+  }
+  .bill{color:#26221E}
+  .bill .bhead{display:flex;justify-content:space-between;border-bottom:2px solid #EFA02E;padding-bottom:3mm;margin-bottom:3mm}
+  .bill .bw{font-weight:900;font-size:15pt;font-family:Arial Black,Arial,sans-serif}
+  .bill .bno{font-family:'Courier New',monospace;font-weight:700;font-size:11pt;text-align:right}
+  .bill table{width:100%;border-collapse:collapse;font-size:9.5pt}
+  .bill td{padding:1mm 0;vertical-align:top}
+  .bill td:last-child{text-align:right;font-family:'Courier New',monospace}
+  .bill .tot td{border-top:1px solid #26221E;font-weight:900;font-size:11pt;padding-top:2mm}
+  .bill .bfoot{margin-top:3mm;border-top:1px dashed #999;padding-top:2mm;font-size:8pt;color:#5C5240}
+  .spin{display:inline-block;width:13px;height:13px;border:2.5px solid var(--ink);border-top-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="wordmark">LUNCHO<i>.</i></div>
+  <small>ADMIN<br>OWNER ONLY</small>
+</div>
+<div class="wrap">
+  <div class="panel" id="login">
+    <div style="font-family:var(--display);font-size:17px">Owner login</div>
+    <input type="password" id="key-in" placeholder="Owner key (LNCH-....)" autocomplete="off">
+    <div style="margin-top:10px"><button class="btn" id="btn-login">OPEN DASHBOARD</button></div>
+    <p class="msg hidden" id="login-msg"></p>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="tabs">
+      <button class="tab on" id="tab-orders">ORDERS</button>
+      <button class="tab" id="tab-menu">MENU</button>
+    </div>
+
+    <div id="v-orders">
+      <div class="panel">
+        <div class="stats" id="stats"></div>
+        <div class="chips" id="date-chips"></div>
+        <div class="chips" id="campus-chips"></div>
+        <div class="chips" id="status-chips"></div>
+        <div class="toolbar">
+          <button class="btn small" id="btn-labels">&#127991;&#65039; PRINT LABELS</button>
+          <button class="btn small ghost" id="btn-bills">&#129534; PRINT BILLS</button>
+          <button class="btn small ghost" id="btn-reload">&#8635; REFRESH</button>
+        </div>
+      </div>
+      <div id="orders-list"></div>
+    </div>
+
+    <div id="v-menu" class="hidden">
+      <div class="panel">
+        <p style="font-size:13px;color:var(--grey)">Changes go live on luncho.in within a minute. Prices here are enforced on every order.</p>
+        <div id="menu-host"><p style="margin-top:10px"><span class="spin"></span> Loading menu...</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="print-area"></div>
+<script>
+const API = "https://script.google.com/macros/s/AKfycbyxQ-BmhGVnRqsUowCi52AK9GZIXbHtS8MY1hQOyg2JoM2jhtpflHU609irXOi5cOZwGA/exec";
+const KEYSTORE = "luncho.labelkey";
+const PICKUP = "12:40";
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+let KEY = "", ORDERS = [], MENU = [];
+const state = { date:"", campus:"", status:"", tab:"orders" };
+
+async function api(body){
+  body.key = KEY;
+  const res = await fetch(API, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body: JSON.stringify(body) });
+  return res.json();
+}
+function rowToOrder(r){
+  return {
+    ts:r[0], id:String(r[1]), date:String(r[2]), name:String(r[3]),
+    phone:String(r[4]).replace(/^'/,""), college:String(r[5]), campus:String(r[6]),
+    base:String(r[7]), qty:parseInt(r[8],10)||1, amount:parseInt(r[9],10)||0,
+    comps:[["C1",r[10]],["C2",r[11]],["C3",r[12]],["C4",r[13]],["C5",r[15]],["C6",r[17]]],
+    proof:String(r[21]).replace(/^'/,""), status:String(r[22]),
+    confirmed:String(r[24]||""), packed:String(r[25]||""), collected:String(r[26]||""),
+    cancelled:String(r[27]||""), notes:String(r[29]||"")
+  };
+}
+// ---------- login ----------
+async function login(showErrors){
+  try{
+    const data = await api({ action:"orders" });
+    if(!data.ok) throw new Error(data.error);
+    try{ localStorage.setItem(KEYSTORE, KEY); }catch(e){}
+    ORDERS = data.rows.map(rowToOrder);
+    $("login").classList.add("hidden");
+    $("app").classList.remove("hidden");
+    initFilters();
+    renderOrders();
+  }catch(err){
+    KEY = "";
+    try{ localStorage.removeItem(KEYSTORE); }catch(e){}
+    if(showErrors){
+      $("login-msg").textContent = "Could not open: " + err.message;
+      $("login-msg").classList.remove("hidden");
+    }
+    $("login").classList.remove("hidden");
+  }
+}
+$("btn-login").addEventListener("click", () => { KEY = $("key-in").value.trim(); if(KEY) login(true); });
+$("key-in").addEventListener("keydown", e => { if(e.key === "Enter") $("btn-login").click(); });
+
+// ---------- orders ----------
+function uniq(arr){ return [...new Set(arr)]; }
+function initFilters(){
+  const dates = uniq(ORDERS.map(o=>o.date));
+  if(!dates.includes(state.date)) state.date = dates.length ? dates[dates.length-1] : "";
+}
+function filtered(){
+  return ORDERS.filter(o =>
+    (!state.date || o.date === state.date) &&
+    (!state.campus || o.campus === state.campus) &&
+    (!state.status || (state.status === "Verified" ? o.status === "Verified" : o.status !== "Verified"))
+  );
+}
+function chipRow(el, items, cur, onpick, allLabel){
+  el.innerHTML = `<button class="chip ${cur===""?"on":""}" data-v="">${allLabel}</button>` +
+    items.map(v=>`<button class="chip ${cur===v?"on":""}" data-v="${esc(v)}">${esc(v)}</button>`).join("");
+  el.onclick = e => { const c = e.target.closest(".chip"); if(c){ onpick(c.dataset.v); renderOrders(); } };
+}
+function renderOrders(){
+  const list = filtered().filter(o=>!o.cancelled);
+  const cancelled = filtered().filter(o=>o.cancelled);
+  const boxes = list.reduce((s,o)=>s+o.qty,0);
+  const ver = list.filter(o=>o.status==="Verified");
+  const veg = list.filter(o=>o.base==="Veg").reduce((s,o)=>s+o.qty,0);
+  $("stats").innerHTML =
+    `<div class="stat"><b>${list.length}</b><span>ORDERS</span></div>` +
+    `<div class="stat"><b>${boxes}</b><span>BOXES</span></div>` +
+    `<div class="stat"><b>${list.length-ver.length}</b><span>PENDING</span></div>` +
+    `<div class="stat"><b>&#8377;${ver.reduce((s,o)=>s+o.amount,0)}</b><span>VERIFIED &#8377;</span></div>` +
+    `<div class="stat"><b>${veg}</b><span>VEG</span></div>` +
+    `<div class="stat"><b>${boxes-veg}</b><span>NON-VEG</span></div>` +
+    uniq(ORDERS.filter(o=>o.date===state.date&&!o.cancelled).map(o=>o.campus)).slice(0,2).map(c=>{
+      const n = ORDERS.filter(o=>o.date===state.date&&o.campus===c&&!o.cancelled).reduce((s,o)=>s+o.qty,0);
+      return `<div class="stat"><b>${n}</b><span>${esc(c)}</span></div>`;
+    }).join("");
+  chipRow($("date-chips"), uniq(ORDERS.map(o=>o.date)).reverse(), state.date, v=>state.date=v, "ALL DATES");
+  chipRow($("campus-chips"), uniq(ORDERS.map(o=>o.campus)).sort(), state.campus, v=>state.campus=v, "ALL COLLEGES");
+  chipRow($("status-chips"), ["Pending","Verified"], state.status, v=>state.status=v, "ALL STATUS");
+  $("orders-list").innerHTML = list.concat(cancelled).map(cardHTML).join("") ||
+    `<div class="panel" style="text-align:center;color:var(--grey)">No orders match.</div>`;
+}
+function cardHTML(o){
+  const cls = o.base==="Veg" ? "veg" : "nonveg";
+  const picks = o.comps.map(c=>`<span>${c[0]} ${esc(c[1])}</span>`).join(" &nbsp;&#183;&nbsp; ");
+  return `<div class="card ${o.cancelled?"cancelled":""}" data-id="${esc(o.id)}">
+    <div class="card-top"><b>${esc(o.name)}</b><span class="oid">No. ${esc(o.id)}</span></div>
+    <div class="tagrow">
+      <span class="tag">${esc(o.campus)}</span>
+      <span class="tag ${cls}">${esc(o.base.toUpperCase())} x${o.qty}</span>
+      <span class="tag amt">&#8377;${o.amount}</span>
+      <span class="tag ${o.status==="Verified"?"ok":"warn"}">${o.status==="Verified"?"VERIFIED":"PENDING"}</span>
+      ${o.packed?`<span class="tag dim">PACKED</span>`:""}
+      ${o.collected?`<span class="tag dim">COLLECTED</span>`:""}
+      ${o.cancelled?`<span class="tag warn">CANCELLED</span>`:""}
+    </div>
+    <div class="picks">${picks}<br>PAY: ${esc(o.proof)} &nbsp; WA: ${esc(o.phone)}</div>
+    <div class="acts">
+      <button class="act ${o.status==="Verified"?"done":"primary"}" data-act="verify">${o.status==="Verified"?"&#10003; VERIFIED":"VERIFY"}</button>
+      <button class="act ${o.packed?"done":""}" data-act="packed">${o.packed?"&#10003; PACKED":"PACKED"}</button>
+      <button class="act ${o.collected?"done":""}" data-act="collected">${o.collected?"&#10003; GIVEN":"GIVEN"}</button>
+      <button class="act" data-act="bill">BILL</button>
+      <button class="act" data-act="wa">WHATSAPP &#10003;</button>
+    </div>
+  </div>`;
+}
+$("orders-list").addEventListener("click", async e => {
+  const btn = e.target.closest(".act");
+  if(!btn) return;
+  const id = e.target.closest(".card").dataset.id;
+  const o = ORDERS.find(x=>x.id===id);
+  if(!o) return;
+  const act = btn.dataset.act;
+  if(act === "bill"){ printBills([o]); return; }
+  if(act === "wa"){
+    const msg = `Luncho ✅ Order No. ${o.id} confirmed!\n${o.base} bento x${o.qty} — ₹${o.amount}\n${o.date} · pickup ${PICKUP} · ${o.college} gate\nSay your name at the gate. ನಾಳೆ ಸಿಗೋಣ 🍱`;
+    window.open(`https://wa.me/91${o.phone}?text=${encodeURIComponent(msg)}`, "_blank");
+    o.confirmed = "yes"; api({ action:"update", orderId:id, set:{ confirmed:true } });
+    return;
+  }
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+  let set = {};
+  if(act === "verify") set = { status: o.status==="Verified" ? "Pending" : "Verified" };
+  if(act === "packed") set = { packed: !o.packed };
+  if(act === "collected") set = { collected: !o.collected };
+  const res = await api({ action:"update", orderId:id, set }).catch(()=>({ok:false}));
+  if(res.ok){
+    if(set.status) o.status = set.status;
+    if(set.packed !== undefined) o.packed = set.packed ? "yes" : "";
+    if(set.collected !== undefined) o.collected = set.collected ? "yes" : "";
+  } else {
+    alert("Update failed - check internet and retry.");
+  }
+  renderOrders();
+});
+$("btn-reload").addEventListener("click", async () => {
+  const d = await api({ action:"orders" });
+  if(d.ok){ ORDERS = d.rows.map(rowToOrder); initFilters(); renderOrders(); }
+});
+$("btn-labels").addEventListener("click", () => {
+  let u = `labels.html?auto=1&print=1&date=${encodeURIComponent(state.date)}`;
+  if(state.campus) u += `&campus=${encodeURIComponent(state.campus)}`;
+  window.open(u, "_blank");
+});
+$("btn-bills").addEventListener("click", () => printBills(filtered().filter(o=>!o.cancelled)));
+
+// ---------- bills ----------
+function billHTML(o){
+  const rows = o.comps.map(c=>`<tr><td>${c[0]} &nbsp;${esc(c[1])}</td><td></td></tr>`).join("");
+  return `<div class="bill">
+    <div class="bhead"><div class="bw">LUNCHO.</div><div class="bno">BILL<br>No. ${esc(o.id)}</div></div>
+    <table>
+      <tr><td><b>${esc(o.name)}</b></td><td>${esc(o.date)}</td></tr>
+      <tr><td>${esc(o.college)}</td><td>pickup ${PICKUP}</td></tr>
+      <tr><td style="padding-top:2mm"><b>${esc(o.base)} bento &#215; ${o.qty}</b></td><td style="padding-top:2mm">&#8377;${o.amount}</td></tr>
+      ${rows}
+      <tr class="tot"><td>TOTAL (prepaid UPI)</td><td>&#8377;${o.amount}</td></tr>
+      <tr><td>Payment ref</td><td>${esc(o.proof)}</td></tr>
+      <tr><td>Status</td><td>${o.status==="Verified"?"PAID &#10003;":"PENDING"}</td></tr>
+    </table>
+    <div class="bfoot">luncho.in &#183; hello@luncho.in &#183; Thank you! ನಾಳೆ ಸಿಗೋಣ</div>
+  </div>`;
+}
+function printBills(list){
+  if(!list.length) return;
+  $("print-area").innerHTML = list.map(billHTML).join("");
+  setTimeout(()=>window.print(), 150);
+}
+
+// ---------- menu editor ----------
+const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat"];
+async function loadMenu(){
+  const d = await api({ action:"menuget" });
+  if(!d.ok){ $("menu-host").innerHTML = `<p class="msg">Could not load menu: ${esc(d.error)}</p>`; return; }
+  MENU = d.rows;
+  renderMenu();
+}
+function menuRowInputs(i, r, kind){
+  const active = String(r[7]).toUpperCase() !== "FALSE";
+  let fields = `<div class="grid">
+      <input data-f="name" value="${esc(r[3])}" placeholder="Name">`;
+  if(kind === "BASE") fields += `<input data-f="price" type="number" inputmode="numeric" value="${esc(r[6])}" placeholder="&#8377;">`;
+  else if(kind === "CHOICE") fields += `<select data-f="bases"><option ${/both|,/i.test(r[5])||!r[5]?"selected":""}>Both</option><option ${String(r[5]).toLowerCase()==="veg"?"selected":""}>Veg</option><option ${/^non/i.test(r[5])?"selected":""}>Non-veg</option></select>`;
+  else fields += `<span style="font-family:var(--mono);font-size:11px;align-self:center;color:var(--grey)">${esc(r[1])} ${esc(r[2])}</span>`;
+  fields += `<input class="note-in" data-f="note" value="${esc(r[4])}" placeholder="Note shown to students (optional)"></div>`;
+  return `<div class="mrow" data-row="${i+1}" data-kind="${kind}">
+    ${fields}
+    <div class="foot">
+      <label class="sw"><input type="checkbox" data-f="active" ${active?"checked":""}> ON MENU</label>
+      <span class="savedflash hidden">SAVED &#10003;</span>
+      ${kind==="CHOICE" ? `<button class="act" data-mact="del">&#10005;</button>` : ""}
+      <button class="act primary" data-mact="save">SAVE</button>
+    </div>
+  </div>`;
+}
+function renderMenu(){
+  let html = "";
+  html += `<div class="sec"><h2>PRICES (VEG / NON-VEG)</h2>`;
+  MENU.forEach((r,i)=>{ if(String(r[0]).toUpperCase()==="BASE") html += menuRowInputs(i,r,"BASE"); });
+  html += `</div>`;
+  html += `<div class="sec"><h2>WEEKLY FIXED MENU (C1-C3)</h2>`;
+  DAYS.forEach(day=>{
+    const idx = MENU.map((r,i)=>({r,i})).filter(x=>String(x.r[0]).toUpperCase()==="FIXED" && String(x.r[1]).slice(0,3)===day);
+    if(idx.length){
+      html += `<div class="slotlabel" style="margin-top:10px">${day.toUpperCase()}</div>`;
+      idx.forEach(x=>{ html += menuRowInputs(x.i, x.r, "FIXED"); });
+    }
+  });
+  html += `</div>`;
+  ["C4","C5","C6"].forEach(slot=>{
+    html += `<div class="sec"><h2>STUDENT CHOICES - ${slot}</h2>`;
+    MENU.forEach((r,i)=>{ if(String(r[0]).toUpperCase()==="CHOICE" && String(r[2]).toUpperCase()===slot) html += menuRowInputs(i,r,"CHOICE"); });
+    html += `<div class="addbar"><input placeholder="New ${slot} item name" data-addslot="${slot}"><button class="act primary" data-mact="add" data-slot="${slot}">ADD</button></div></div>`;
+  });
+  $("menu-host").innerHTML = html;
+}
+$("menu-host") && document.addEventListener("click", async e => {
+  const btn = e.target.closest("[data-mact]");
+  if(!btn) return;
+  const mact = btn.dataset.mact;
+  if(mact === "add"){
+    const slot = btn.dataset.slot;
+    const input = document.querySelector(`input[data-addslot="${slot}"]`);
+    const name = (input.value||"").trim();
+    if(!name) return;
+    btn.disabled = true;
+    const res = await api({ action:"menuset", op:"add", values:["CHOICE","",slot,name,"","Both","","TRUE"] });
+    btn.disabled = false;
+    if(res.ok){ await loadMenu(); } else alert("Add failed: " + res.error);
+    return;
+  }
+  const mrow = e.target.closest(".mrow");
+  if(!mrow) return;
+  const row = parseInt(mrow.dataset.row,10);
+  const kind = mrow.dataset.kind;
+  const orig = MENU[row-1];
+  if(mact === "del"){
+    if(!confirm("Remove this item from the menu sheet?")) return;
+    btn.disabled = true;
+    const res = await api({ action:"menuset", op:"delete", row });
+    if(res.ok){ await loadMenu(); } else { btn.disabled=false; alert("Delete failed: " + res.error); }
+    return;
+  }
+  if(mact === "save"){
+    const get = f => mrow.querySelector(`[data-f="${f}"]`);
+    const vals = [orig[0], orig[1], orig[2],
+      get("name").value.trim() || String(orig[3]),
+      get("note") ? get("note").value.trim() : String(orig[4]),
+      kind==="CHOICE" ? get("bases").value : String(orig[5]),
+      kind==="BASE" ? (parseInt(get("price").value,10) || orig[6]) : String(orig[6]),
+      get("active").checked ? "TRUE" : "FALSE"];
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+    const res = await api({ action:"menuset", op:"update", row, values: vals });
+    btn.disabled = false; btn.textContent = "SAVE";
+    if(res.ok){
+      MENU[row-1] = vals;
+      const flash = mrow.querySelector(".savedflash");
+      flash.classList.remove("hidden");
+      setTimeout(()=>flash.classList.add("hidden"), 1600);
+    } else alert("Save failed: " + res.error);
+  }
+});
+
+// ---------- tabs & boot ----------
+$("tab-orders").addEventListener("click", ()=>{ state.tab="orders"; $("tab-orders").classList.add("on"); $("tab-menu").classList.remove("on"); $("v-orders").classList.remove("hidden"); $("v-menu").classList.add("hidden"); });
+$("tab-menu").addEventListener("click", ()=>{ state.tab="menu"; $("tab-menu").classList.add("on"); $("tab-orders").classList.remove("on"); $("v-menu").classList.remove("hidden"); $("v-orders").classList.add("hidden"); if(!MENU.length) loadMenu(); });
+try{ KEY = localStorage.getItem(KEYSTORE) || ""; }catch(e){}
+if(KEY) login(false);
+</script>
+</body>
+</html>

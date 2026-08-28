@@ -245,6 +245,7 @@ async function fetchOrders(){
       return;
     }
     makeLabels();
+    applyQueryFilters();
   }catch(err){
     msg.textContent = "Could not load orders: " + err.message;
     msg.classList.add("show");
@@ -252,7 +253,26 @@ async function fetchOrders(){
     btn.disabled = false; btn.textContent = "LOAD ORDERS";
   }
 }
+// One-click flow from admin.html: labels.html?auto=1&date=..&campus=..&type=..&print=1
+let queryApplied = false;
+function applyQueryFilters(){
+  if(queryApplied) return;
+  queryApplied = true;
+  const qs = new URLSearchParams(location.search);
+  if(!qs.get("auto")) return;
+  const map = { date:"f-date", campus:"f-campus", type:"f-base" };
+  let changed = false;
+  for(const k in map){
+    const v = qs.get(k);
+    if(v && [...$(map[k]).options].some(o=>o.value===v)){ $(map[k]).value = v; changed = true; }
+  }
+  if(changed) makeLabels();
+  if(qs.get("print") && $("labels").children.length) setTimeout(()=>window.print(), 700);
+}
 $("btn-fetch").addEventListener("click",fetchOrders);
+try{
+  if(new URLSearchParams(location.search).get("auto") && localStorage.getItem("luncho.labelkey")) fetchOrders();
+}catch(e){}
 $("btn-make").addEventListener("click",makeLabels);
 FILTERS.forEach(f=>$(f.sel).addEventListener("change",makeLabels));
 $("only-verified").addEventListener("change",makeLabels);
