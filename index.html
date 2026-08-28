@@ -387,7 +387,9 @@ const fixedItems = () => (menuFor(deliveryDate()) || {fixed:[]}).fixed;
 const choicesForSlot = slot => CONFIG.CHOICES.filter(c => c.slot===slot && c.active!==false && c.bases.includes(state.base));
 const choiceById = id => CONFIG.CHOICES.find(c => c.id===id);
 const selectedCustomItems = () => CONFIG.BENTO.customSlots.map(s => choiceById(state.choices[s.id])).filter(Boolean);
+let PAUSED = false; // owner kill switch, served with the menu; server also rejects with PAUSED
 function isOpen(){
+  if(PAUSED) return false;
   if(IS_LOCAL_PREVIEW && CONFIG.LOCAL_PREVIEW_OPEN) return !!menuFor(deliveryDate());
   const n=now(), h=n.getHours();
   return h>=CONFIG.OPEN_HOUR && h<CONFIG.CLOSE_HOUR && CONFIG.SERVICE_DAYS.includes(deliveryDate().getDay());
@@ -479,6 +481,7 @@ function renderCampuses(){
 function tickCountdown(){
   const c=$("chip-count");
   if(IS_LOCAL_PREVIEW && CONFIG.LOCAL_PREVIEW_OPEN){ c.textContent = `PREVIEW - CLOSES ${CONFIG.CUTOFF_LABEL}`; return; }
+  if(PAUSED){ c.textContent = "KITCHEN ON A BREAK"; return; }
   if(!isOpen()){ c.textContent = now().getHours()<CONFIG.OPEN_HOUR ? `OPENS ${CONFIG.OPEN_HOUR}:00 AM` : "ORDERS CLOSED"; return; }
   const end=now(); end.setHours(CONFIG.CLOSE_HOUR,0,0,0);
   const ms=end-now(), h=Math.floor(ms/3.6e6), m=Math.ceil(ms%3.6e6/6e4);
@@ -615,6 +618,7 @@ async function submitOrder(){
     const data=await submitToEndpoint(payload);
     if(data.ok){ showDone(payload,data); }
     else if(data.error==="CLOSED"){ render(); alert(`Orders just closed for tonight - ${CONFIG.CUTOFF_LABEL} cutoff.`); }
+    else if(data.error==="PAUSED"){ PAUSED=true; render(); alert("The kitchen just went on a short break - your order was NOT placed. If you already paid, WhatsApp us and we'll refund or carry it forward."); }
     else if(data.error==="DUP_UTR"){ alert("This transaction ID was already used. Check the receipt, or WhatsApp us if money was debited."); }
     else{ fallbackWA(payload, data.error); }
   }catch(err){ fallbackWA(payload,"network"); }
@@ -851,6 +855,7 @@ async function loadRemoteMenu(){
   applyMenu(data);
 }
 function applyMenu(m){
+  PAUSED = !!m.paused;
   CONFIG.BENTO.baseTypes = m.baseTypes;
   CONFIG.WEEKLY_MENU = m.weekly || {};
   CONFIG.CHOICES = m.choices;
@@ -887,8 +892,13 @@ function render(){
   $("s-closed").classList.toggle("hidden",open);
   ["s-base","s-bento","s-form","s-pay","s-intro"].forEach(id=>$(id).classList.toggle("hidden",!open||done));
   if(!open){
-    $("closed-title").textContent = now().getHours()<CONFIG.OPEN_HOUR ? "OPENS 8 AM." : "ORDERS CLOSED.";
-    $("closed-sub").textContent=nextOpenText();
+    if(PAUSED){
+      $("closed-title").textContent = "KITCHEN ON A BREAK.";
+      $("closed-sub").textContent = "Not taking orders right now - check back soon, or WhatsApp us for updates.";
+    } else {
+      $("closed-title").textContent = now().getHours()<CONFIG.OPEN_HOUR ? "OPENS 8 AM." : "ORDERS CLOSED.";
+      $("closed-sub").textContent=nextOpenText();
+    }
   }
 }
 $("base-grid").addEventListener("click",e=>{

@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Luncho - Admin</title>
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#EFA02E">
+<link rel="manifest" href="admin.webmanifest">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Karla:wght@400;500;700&family=Spline+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -150,6 +153,7 @@
 
     <div id="v-menu" class="hidden">
       <div class="panel">
+        <div id="pause-host"></div>
         <p style="font-size:13px;color:var(--grey)">Changes go live on luncho.in within a minute. Prices here are enforced on every order.</p>
         <div id="menu-host"><p style="margin-top:10px"><span class="spin"></span> Loading menu...</p></div>
       </div>
@@ -163,7 +167,7 @@ const KEYSTORE = "luncho.labelkey";
 const PICKUP = "12:40";
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-let KEY = "", ORDERS = [], MENU = [], lastLoad = 0;
+let KEY = "", ORDERS = [], MENU = [], REV = null, MPAUSED = false, lastLoad = 0;
 const state = { date:"", campus:"", status:"", q:"", tab:"orders" };
 
 async function api(body){
@@ -185,10 +189,11 @@ function rowToOrder(r){
 // ---------- login ----------
 async function login(showErrors){
   try{
-    const data = await api({ action:"orders" });
+    const data = await api({ action:"orders", days:30 });
     if(!data.ok) throw new Error(data.error);
     try{ localStorage.setItem(KEYSTORE, KEY); }catch(e){}
     ORDERS = data.rows.map(rowToOrder);
+    REV = data.rev || null;
     lastLoad = Date.now();
     $("login").classList.add("hidden");
     $("app").classList.remove("hidden");
@@ -229,17 +234,23 @@ function chipRow(el, items, cur, onpick, allLabel){
   el.onclick = e => { const c = e.target.closest(".chip"); if(c){ onpick(c.dataset.v); renderOrders(); } };
 }
 function renderRevenue(){
-  // ts is "dd/MM/yyyy HH:mm" from the sheet; revenue = verified, non-cancelled orders
   const now = new Date();
-  const mm = String(now.getMonth()+1).padStart(2,"0"), yyyy = String(now.getFullYear());
-  const paid = ORDERS.filter(o=>!o.cancelled && o.status==="Verified");
-  const month = paid.filter(o=>String(o.ts).slice(3,5)===mm && String(o.ts).slice(6,10)===yyyy);
-  const mRev = month.reduce((s,o)=>s+o.amount,0), mBoxes = month.reduce((s,o)=>s+o.qty,0);
-  const aRev = paid.reduce((s,o)=>s+o.amount,0);
   const mName = now.toLocaleString("en-IN",{month:"short"}).toUpperCase();
+  let m;
+  if(REV){
+    // Server computes over the full sheet, so the 30-day row window can't skew totals.
+    m = { rev:REV.month, orders:REV.monthOrders, boxes:REV.monthBoxes, all:REV.all, allOrders:REV.allOrders, refund:REV.refundMonth||0 };
+  } else {
+    // Fallback for an old server: compute from loaded rows (ts "dd/MM/yyyy HH:mm").
+    const mm = String(now.getMonth()+1).padStart(2,"0"), yyyy = String(now.getFullYear());
+    const paid = ORDERS.filter(o=>!o.cancelled && o.status==="Verified");
+    const month = paid.filter(o=>String(o.ts).slice(3,5)===mm && String(o.ts).slice(6,10)===yyyy);
+    m = { rev:month.reduce((s,o)=>s+o.amount,0), orders:month.length, boxes:month.reduce((s,o)=>s+o.qty,0),
+          all:paid.reduce((s,o)=>s+o.amount,0), allOrders:paid.length, refund:0 };
+  }
   $("revbar").innerHTML =
-    `<div class="rev"><b>&#8377;${mRev}</b><span>${mName} REVENUE</span><small>${month.length} orders &#183; ${mBoxes} boxes</small></div>` +
-    `<div class="rev"><b>&#8377;${aRev}</b><span>ALL TIME</span><small>${paid.length} paid orders</small></div>`;
+    `<div class="rev"><b>&#8377;${m.rev}</b><span>${mName} REVENUE</span><small>${m.orders} orders &#183; ${m.boxes} boxes${m.refund?` &#183; &#8377;${m.refund} refunded`:""}</small></div>` +
+    `<div class="rev"><b>&#8377;${m.all}</b><span>ALL TIME</span><small>${m.allOrders} paid orders</small></div>`;
 }
 function renderOrders(){
   renderRevenue();
@@ -319,13 +330,19 @@ $("orders-list").addEventListener("click", async e => {
     return;
   }
   if(act === "cancel"){
+    const set2 = { cancelled: !o.cancelled };
     if(o.cancelled){
       if(!confirm("Restore cancelled order " + o.id + " (" + o.name + ")?")) return;
     } else {
-      if(!confirm("Cancel order " + o.id + " (" + o.name + ")?" + (o.status==="Verified" ? "\n\nThis order is PAID - refund via UPI, then save the refund txn id with NOTE." : ""))) return;
+      if(!confirm("Cancel order " + o.id + " (" + o.name + ")?" + (o.status==="Verified" ? "\n\nThis order is PAID - refund ₹" + o.amount + " via UPI." : ""))) return;
+      if(o.status === "Verified"){
+        const refund = prompt("Refund UPI txn id (leave empty if not refunded yet):", "");
+        if(refund === null) return;
+        if(refund.trim()) set2.refund = refund.trim();
+      }
     }
     btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
-    const r = await api({ action:"update", orderId:id, set:{ cancelled: !o.cancelled } }).catch(()=>({ok:false}));
+    const r = await api({ action:"update", orderId:id, set: set2 }).catch(()=>({ok:false}));
     if(r.ok) o.cancelled = o.cancelled ? "" : "yes"; else alert("Update failed - check internet and retry.");
     renderOrders();
     return;
@@ -348,9 +365,10 @@ $("orders-list").addEventListener("click", async e => {
   renderOrders();
 });
 async function reloadOrders(){
-  const d = await api({ action:"orders" }).catch(()=>({ok:false}));
+  const d = await api({ action:"orders", days:30 }).catch(()=>({ok:false}));
   if(d.ok){
     ORDERS = d.rows.map(rowToOrder);
+    REV = d.rev || null;
     lastLoad = Date.now();
     initFilters(); renderOrders();
     if(!$("cook-host").classList.contains("hidden")) renderCook();
@@ -467,7 +485,24 @@ async function loadMenu(){
   const d = await api({ action:"menuget" });
   if(!d.ok){ $("menu-host").innerHTML = `<p class="msg">Could not load menu: ${esc(d.error)}</p>`; return; }
   MENU = d.rows;
+  MPAUSED = !!d.paused;
+  renderPause();
   renderMenu();
+}
+function renderPause(){
+  $("pause-host").innerHTML = MPAUSED
+    ? `<button class="btn small" id="btn-pause" style="background:var(--oxblood);color:#fff;width:100%;margin-bottom:10px">ORDERS ARE PAUSED - TAP TO RESUME</button>`
+    : `<button class="btn small ghost" id="btn-pause" style="width:100%;margin-bottom:10px">&#9208; PAUSE ALL ORDERS (sick day / holiday)</button>`;
+  $("btn-pause").onclick = async () => {
+    const msg = MPAUSED
+      ? "Resume taking orders?"
+      : "PAUSE all orders? Students will see 'kitchen on a break' and cannot order until you resume.";
+    if(!confirm(msg)) return;
+    $("btn-pause").disabled = true;
+    const r = await api({ action:"pause", on: !MPAUSED }).catch(()=>({ok:false}));
+    if(r.ok){ MPAUSED = !!r.paused; renderPause(); }
+    else { $("btn-pause").disabled = false; alert("Failed - check internet and retry."); }
+  };
 }
 function menuRowInputs(i, r, kind){
   const active = String(r[7]).toUpperCase() !== "FALSE";
@@ -475,14 +510,16 @@ function menuRowInputs(i, r, kind){
       <input data-f="name" value="${esc(r[3])}" placeholder="Name">`;
   if(kind === "BASE") fields += `<input data-f="price" type="number" inputmode="numeric" value="${esc(r[6])}" placeholder="&#8377;">`;
   else if(kind === "CHOICE") fields += `<select data-f="bases"><option ${/both|,/i.test(r[5])||!r[5]?"selected":""}>Both</option><option ${String(r[5]).toLowerCase()==="veg"?"selected":""}>Veg</option><option ${/^non/i.test(r[5])?"selected":""}>Non-veg</option></select>`;
-  else fields += `<span style="font-family:var(--mono);font-size:11px;align-self:center;color:var(--grey)">${esc(r[1])} ${esc(r[2])}</span>`;
-  fields += `<input class="note-in" data-f="note" value="${esc(r[4])}" placeholder="Note shown to students (optional)"></div>`;
+  else fields += `<select data-f="day">${DAYS.map(d=>`<option ${String(r[1]).slice(0,3)===d?"selected":""}>${d}</option>`).join("")}</select>`;
+  fields += `<input class="note-in" data-f="note" value="${esc(r[4])}" placeholder="Note shown to students (optional)" ${kind==="FIXED"?'style="grid-column:1"':''}>`;
+  if(kind === "FIXED") fields += `<select data-f="slot">${["C1","C2","C3"].map(s=>`<option ${String(r[2]).toUpperCase()===s?"selected":""}>${s}</option>`).join("")}</select>`;
+  fields += `</div>`;
   return `<div class="mrow" data-row="${i+1}" data-kind="${kind}">
     ${fields}
     <div class="foot">
       <label class="sw"><input type="checkbox" data-f="active" ${active?"checked":""}> ON MENU</label>
       <span class="savedflash hidden">SAVED &#10003;</span>
-      ${kind==="CHOICE" ? `<button class="act" data-mact="del">&#10005;</button>` : ""}
+      ${kind!=="BASE" ? `<button class="act" data-mact="del">&#10005;</button>` : ""}
       <button class="act primary" data-mact="save">SAVE</button>
     </div>
   </div>`;
@@ -498,9 +535,16 @@ function renderMenu(){
     if(idx.length){
       html += `<div class="slotlabel" style="margin-top:10px">${day.toUpperCase()}</div>`;
       idx.forEach(x=>{ html += menuRowInputs(x.i, x.r, "FIXED"); });
+    } else {
+      html += `<div class="slotlabel" style="margin-top:10px">${day.toUpperCase()} &#183; CLOSED (no items - add below to open)</div>`;
     }
   });
-  html += `</div>`;
+  html += `<div class="addbar">
+    <select id="addfix-day" style="width:64px;padding:10px;border:1px dashed var(--dash);border-radius:6px;background:transparent">${DAYS.map(d=>`<option>${d}</option>`).join("")}</select>
+    <select id="addfix-slot" style="width:60px;padding:10px;border:1px dashed var(--dash);border-radius:6px;background:transparent"><option>C1</option><option>C2</option><option>C3</option></select>
+    <input placeholder="New fixed item" id="addfix-name">
+    <button class="act primary" data-mact="addfix">ADD</button>
+  </div></div>`;
   ["C4","C5","C6"].forEach(slot=>{
     html += `<div class="sec"><h2>STUDENT CHOICES - ${slot}</h2>`;
     MENU.forEach((r,i)=>{ if(String(r[0]).toUpperCase()==="CHOICE" && String(r[2]).toUpperCase()===slot) html += menuRowInputs(i,r,"CHOICE"); });
@@ -523,6 +567,15 @@ $("menu-host") && document.addEventListener("click", async e => {
     if(res.ok){ await loadMenu(); } else alert("Add failed: " + res.error);
     return;
   }
+  if(mact === "addfix"){
+    const name = ($("addfix-name").value||"").trim();
+    if(!name) return;
+    btn.disabled = true;
+    const res = await api({ action:"menuset", op:"add", values:["FIXED", $("addfix-day").value, $("addfix-slot").value, name, "", "", "", "TRUE"] });
+    btn.disabled = false;
+    if(res.ok){ await loadMenu(); } else alert("Add failed: " + res.error);
+    return;
+  }
   const mrow = e.target.closest(".mrow");
   if(!mrow) return;
   const row = parseInt(mrow.dataset.row,10);
@@ -537,7 +590,9 @@ $("menu-host") && document.addEventListener("click", async e => {
   }
   if(mact === "save"){
     const get = f => mrow.querySelector(`[data-f="${f}"]`);
-    const vals = [orig[0], orig[1], orig[2],
+    const vals = [orig[0],
+      kind==="FIXED" ? get("day").value : orig[1],
+      kind==="FIXED" ? get("slot").value : orig[2],
       get("name").value.trim() || String(orig[3]),
       get("note") ? get("note").value.trim() : String(orig[4]),
       kind==="CHOICE" ? get("bases").value : String(orig[5]),
@@ -548,6 +603,7 @@ $("menu-host") && document.addEventListener("click", async e => {
     btn.disabled = false; btn.textContent = "SAVE";
     if(res.ok){
       MENU[row-1] = vals;
+      if(kind === "FIXED"){ renderMenu(); return; } // regroup under the (possibly new) day
       const flash = mrow.querySelector(".savedflash");
       flash.classList.remove("hidden");
       setTimeout(()=>flash.classList.add("hidden"), 1600);
