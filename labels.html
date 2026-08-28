@@ -35,6 +35,7 @@
   .btn.ink{background:var(--ink);color:var(--yolk)}
   .msg{margin-top:10px;font-size:13px;color:var(--oxblood);font-weight:700;display:none}
   .msg.show{display:block}
+  .msg.info{color:var(--grey)}
   .summary{margin-top:16px;border:1px dashed var(--dash);border-radius:8px;background:var(--paper);padding:12px 14px;display:none}
   .summary.show{display:block}
   .summary h2{font-family:var(--mono);font-size:12px;letter-spacing:.1em}
@@ -80,8 +81,9 @@
   </div>
   <div class="panel">
     <p class="steps">
-      Tap <b>LOAD ORDERS</b> - it pulls everything from the Orders_V2 sheet (owner key asked once on this device).
-      Filter by date/college/type, then <b>PRINT</b>. One label per box - qty 2 makes 2 labels.
+      Opens instantly with the orders already saved on this device, then refreshes by itself
+      (owner key asked once - it is the <b>same key as the admin page</b>).
+      Pick date/college/type, then <b>PRINT</b>. One label per box - qty 2 makes 2 labels.
       Paste rows below only as a manual fallback.
     </p>
     <div class="row">
@@ -138,12 +140,21 @@ const FILTERS = [
   { sel:"f-campus", key:"campus" },
   { sel:"f-base",   key:"base" }
 ];
+let dateDefaulted = false;
 function populateFilters(rows){
   for(const f of FILTERS){
     const el = $(f.sel), keep = el.value;
-    const values = [...new Set(rows.map(r=>r[f.key]))].sort();
+    // Dates keep sheet (chronological) order - alphabetical sort would shuffle them.
+    let values = [...new Set(rows.map(r=>r[f.key]))];
+    if(f.key !== "date") values = values.sort();
     el.innerHTML = `<option value="">ALL</option>` + values.map(v=>`<option value="${esc(v)}">${esc(v.toUpperCase())}</option>`).join("");
     if(values.includes(keep)) el.value = keep;
+    // Default to the latest delivery date so PRINT never silently prints
+    // every date in the sheet; ALL stays available as a deliberate choice.
+    if(f.key === "date" && !dateDefaulted && !el.value && values.length){
+      el.value = values[values.length-1];
+      dateDefaulted = true;
+    }
   }
   $("filter-row").hidden = false;
 }
@@ -203,22 +214,48 @@ function makeLabels(){
     perBase[r.base]=(perBase[r.base]||0)+r.qty;
   }
   $("labels").innerHTML = labels.join("");
+  // Warn how many boxes are missing from this printout because their payment
+  // is still pending - prevents "where is my box?" at the gate.
+  let pendingHidden = 0;
+  if(onlyV){
+    let hid = all.filter(r=>!r.verified);
+    for(const f of FILTERS){
+      const want = $(f.sel).value;
+      if(want) hid = hid.filter(r=>r[f.key]===want);
+    }
+    pendingHidden = hid.reduce((s,r)=>s+r.qty,0);
+  }
   $("sum-grid").innerHTML =
     `<span><b>${rows.length}</b>orders</span><span><b>${boxes}</b>boxes</span>` +
     Object.entries(perBase).map(([k,v])=>`<span><b>${v}</b>${esc(k)}</span>`).join("") +
-    Object.entries(perCampus).map(([k,v])=>`<span><b>${v}</b>${esc(k)}</span>`).join("");
+    Object.entries(perCampus).map(([k,v])=>`<span><b>${v}</b>${esc(k)}</span>`).join("") +
+    (pendingHidden ? `<span style="color:var(--oxblood)"><b style="background:var(--oxblood)">${pendingHidden}</b>PENDING - NOT PRINTED</span>` : "");
   $("summary").classList.add("show");
 }
 // One-tap load straight from the Orders_V2 sheet via the Apps Script endpoint.
 // The owner key is asked once and kept in this browser only.
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyxQ-BmhGVnRqsUowCi52AK9GZIXbHtS8MY1hQOyg2JoM2jhtpflHU609irXOi5cOZwGA/exec";
-async function fetchOrders(){
+function renderFromRows(rows){
+  $("paste").value = rows
+    .map(r => r.map(c => String(c == null ? "" : c).replace(/[\t\n\r]+/g, " ")).join("\t"))
+    .join("\n");
+  makeLabels();
+  applyQueryFilters();
+}
+function info(text){
   const msg = $("msg");
-  msg.classList.remove("show");
+  msg.textContent = text;
+  msg.classList.add("show","info");
+}
+// silent = background refresh: never prompts for the key, keeps the cached view on failure.
+async function fetchOrders(silent){
+  const msg = $("msg");
+  if(!silent) msg.classList.remove("show","info");
   let key = "";
   try{ key = localStorage.getItem("luncho.labelkey") || ""; }catch(e){}
   if(!key){
-    key = (prompt("Owner key (printed in apps-script.gs as LABEL_KEY):") || "").trim();
+    if(silent) return;
+    key = (prompt("Owner key (same key as the admin page):") || "").trim();
     if(!key) return;
   }
   const btn = $("btn-fetch");
@@ -227,27 +264,27 @@ async function fetchOrders(){
     const res = await fetch(ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action: "orders", key })
+      body: JSON.stringify({ action: "orders", key, days: 7 })
     });
     const data = await res.json();
     if(!data.ok){
       try{ localStorage.removeItem("luncho.labelkey"); }catch(e){}
-      throw new Error(data.error === "BAD_KEY" ? "wrong key - tap LOAD ORDERS to retry" : String(data.error));
+      throw new Error(data.error === "BAD_KEY" ? "wrong key - it is the same key as the admin page" : String(data.error));
     }
     try{ localStorage.setItem("luncho.labelkey", key); }catch(e){}
-    $("paste").value = data.rows
-      .map(r => r.map(c => String(c == null ? "" : c).replace(/[\t\n\r]+/g, " ")).join("\t"))
-      .join("\n");
     if(!data.rows.length){
-      msg.textContent = "Connected - the sheet has no orders yet.";
+      msg.classList.remove("info");
+      msg.textContent = "Connected - no orders in the last 7 days.";
       msg.classList.add("show");
       $("labels").innerHTML = ""; $("summary").classList.remove("show");
       return;
     }
-    makeLabels();
-    applyQueryFilters();
+    msg.classList.remove("show","info");
+    renderFromRows(data.rows);
+    maybeAutoPrint(true);
   }catch(err){
-    msg.textContent = "Could not load orders: " + err.message;
+    msg.classList.remove("info");
+    msg.textContent = (silent ? "Could not refresh (showing saved orders): " : "Could not load orders: ") + err.message;
     msg.classList.add("show");
   }finally{
     btn.disabled = false; btn.textContent = "LOAD ORDERS";
@@ -267,11 +304,31 @@ function applyQueryFilters(){
     if(v && [...$(map[k]).options].some(o=>o.value===v)){ $(map[k]).value = v; changed = true; }
   }
   if(changed) makeLabels();
-  if(qs.get("print") && $("labels").children.length) setTimeout(()=>window.print(), 700);
 }
-$("btn-fetch").addEventListener("click",fetchOrders);
+// Auto-print once, and only from data fresh enough to trust (live fetch, or a
+// cache the admin page wrote moments before opening this tool).
+let autoPrinted = false;
+function maybeAutoPrint(fresh){
+  if(autoPrinted || !fresh) return;
+  const qs = new URLSearchParams(location.search);
+  if(!qs.get("auto") || !qs.get("print")) return;
+  if(!$("labels").children.length) return;
+  autoPrinted = true;
+  setTimeout(()=>window.print(), 400);
+}
+$("btn-fetch").addEventListener("click", ()=>fetchOrders(false));
+// Instant open: reuse the orders the admin dashboard cached on this device,
+// then refresh silently in the background.
 try{
-  if(new URLSearchParams(location.search).get("auto") && localStorage.getItem("luncho.labelkey")) fetchOrders();
+  const cached = JSON.parse(localStorage.getItem("luncho.admin.cache.orders") || "null");
+  const hasKey = !!localStorage.getItem("luncho.labelkey");
+  if(cached && cached.rows && cached.rows.length){
+    renderFromRows(cached.rows);
+    const t = cached.ts ? new Date(cached.ts).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}) : "earlier";
+    info(hasKey ? `Showing orders saved at ${t} - refreshing...` : `Showing orders saved at ${t}. Tap LOAD ORDERS to refresh.`);
+    maybeAutoPrint(Date.now() - (cached.ts || 0) < 3*60*1000);
+  }
+  if(hasKey) fetchOrders(true);
 }catch(e){}
 $("btn-make").addEventListener("click",makeLabels);
 FILTERS.forEach(f=>$(f.sel).addEventListener("change",makeLabels));
