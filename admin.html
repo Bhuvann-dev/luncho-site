@@ -44,6 +44,10 @@
   .rev span{font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.06em}
   .rev small{display:block;font-family:var(--mono);font-size:9px;color:#B8AE97;margin-top:2px}
   .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  #search-in{width:100%;margin-top:10px;padding:11px 13px;border:1px solid #C9C2AD;border-radius:8px;background:var(--paper);font-size:15px}
+  .crow{display:flex;justify-content:space-between;background:var(--paper);border:1px solid #C9C2AD;border-radius:7px;padding:9px 11px;margin-top:6px;font-size:14px}
+  #upd{margin-left:auto;align-self:center;font-family:var(--mono);font-size:10px;color:var(--grey)}
+  #btn-logout{border:1.5px solid var(--ink);background:transparent;border-radius:6px;font-family:var(--mono);font-size:10px;font-weight:700;padding:6px 9px;cursor:pointer;letter-spacing:.05em}
   .stat{background:var(--paper);border:1px solid #C9C2AD;border-radius:8px;padding:8px 6px;text-align:center}
   .stat b{display:block;font-family:var(--display);font-size:18px}
   .stat span{font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.06em;color:var(--grey)}
@@ -105,7 +109,10 @@
 <body>
 <div class="top">
   <div class="wordmark">LUNCHO<i>.</i></div>
-  <small>ADMIN<br>OWNER ONLY</small>
+  <div style="display:flex;gap:10px;align-items:center">
+    <small>ADMIN<br>OWNER ONLY</small>
+    <button id="btn-logout" class="hidden">LOG OUT</button>
+  </div>
 </div>
 <div class="wrap">
   <div class="panel" id="login">
@@ -125,15 +132,19 @@
       <div class="panel">
         <div class="revbar" id="revbar"></div>
         <div class="stats" id="stats"></div>
+        <input id="search-in" placeholder="&#128269; Search name / phone / order no." autocomplete="off">
         <div class="chips" id="date-chips"></div>
         <div class="chips" id="campus-chips"></div>
         <div class="chips" id="status-chips"></div>
         <div class="toolbar">
+          <button class="btn small" id="btn-cook">&#127858; COOK SHEET</button>
           <button class="btn small" id="btn-labels">&#127991;&#65039; PRINT LABELS</button>
           <button class="btn small ghost" id="btn-bills">&#129534; PRINT BILLS</button>
           <button class="btn small ghost" id="btn-reload">&#8635; REFRESH</button>
+          <span id="upd"></span>
         </div>
       </div>
+      <div id="cook-host" class="hidden"></div>
       <div id="orders-list"></div>
     </div>
 
@@ -152,8 +163,8 @@ const KEYSTORE = "luncho.labelkey";
 const PICKUP = "12:40";
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-let KEY = "", ORDERS = [], MENU = [];
-const state = { date:"", campus:"", status:"", tab:"orders" };
+let KEY = "", ORDERS = [], MENU = [], lastLoad = 0;
+const state = { date:"", campus:"", status:"", q:"", tab:"orders" };
 
 async function api(body){
   body.key = KEY;
@@ -178,8 +189,10 @@ async function login(showErrors){
     if(!data.ok) throw new Error(data.error);
     try{ localStorage.setItem(KEYSTORE, KEY); }catch(e){}
     ORDERS = data.rows.map(rowToOrder);
+    lastLoad = Date.now();
     $("login").classList.add("hidden");
     $("app").classList.remove("hidden");
+    $("btn-logout").classList.remove("hidden");
     initFilters();
     renderOrders();
   }catch(err){
@@ -202,10 +215,12 @@ function initFilters(){
   if(!dates.includes(state.date)) state.date = dates.length ? dates[dates.length-1] : "";
 }
 function filtered(){
+  const q = state.q.trim().toLowerCase();
   return ORDERS.filter(o =>
     (!state.date || o.date === state.date) &&
     (!state.campus || o.campus === state.campus) &&
-    (!state.status || (state.status === "Verified" ? o.status === "Verified" : o.status !== "Verified"))
+    (!state.status || (state.status === "Verified" ? o.status === "Verified" : o.status !== "Verified")) &&
+    (!q || o.name.toLowerCase().includes(q) || o.phone.includes(q) || o.id.toLowerCase().includes(q))
   );
 }
 function chipRow(el, items, cur, onpick, allLabel){
@@ -228,11 +243,13 @@ function renderRevenue(){
 }
 function renderOrders(){
   renderRevenue();
-  const list = filtered().filter(o=>!o.cancelled);
+  const list = filtered().filter(o=>!o.cancelled)
+    .sort((a,b)=>(a.status==="Verified")-(b.status==="Verified"));
   const cancelled = filtered().filter(o=>o.cancelled);
   const boxes = list.reduce((s,o)=>s+o.qty,0);
   const ver = list.filter(o=>o.status==="Verified");
   const veg = list.filter(o=>o.base==="Veg").reduce((s,o)=>s+o.qty,0);
+  const byDate = ORDERS.filter(o=>(!state.date || o.date===state.date) && !o.cancelled);
   $("stats").innerHTML =
     `<div class="stat"><b>${list.length}</b><span>ORDERS</span></div>` +
     `<div class="stat"><b>${boxes}</b><span>BOXES</span></div>` +
@@ -240,13 +257,14 @@ function renderOrders(){
     `<div class="stat"><b>&#8377;${ver.reduce((s,o)=>s+o.amount,0)}</b><span>VERIFIED &#8377;</span></div>` +
     `<div class="stat"><b>${veg}</b><span>VEG</span></div>` +
     `<div class="stat"><b>${boxes-veg}</b><span>NON-VEG</span></div>` +
-    uniq(ORDERS.filter(o=>o.date===state.date&&!o.cancelled).map(o=>o.campus)).slice(0,2).map(c=>{
-      const n = ORDERS.filter(o=>o.date===state.date&&o.campus===c&&!o.cancelled).reduce((s,o)=>s+o.qty,0);
+    uniq(byDate.map(o=>o.campus)).sort().map(c=>{
+      const n = byDate.filter(o=>o.campus===c).reduce((s,o)=>s+o.qty,0);
       return `<div class="stat"><b>${n}</b><span>${esc(c)}</span></div>`;
     }).join("");
   chipRow($("date-chips"), uniq(ORDERS.map(o=>o.date)).reverse(), state.date, v=>state.date=v, "ALL DATES");
   chipRow($("campus-chips"), uniq(ORDERS.map(o=>o.campus)).sort(), state.campus, v=>state.campus=v, "ALL COLLEGES");
   chipRow($("status-chips"), ["Pending","Verified"], state.status, v=>state.status=v, "ALL STATUS");
+  $("upd").textContent = lastLoad ? "updated " + new Date(lastLoad).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}) : "";
   $("orders-list").innerHTML = list.concat(cancelled).map(cardHTML).join("") ||
     `<div class="panel" style="text-align:center;color:var(--grey)">No orders match.</div>`;
 }
@@ -260,17 +278,20 @@ function cardHTML(o){
       <span class="tag ${cls}">${esc(o.base.toUpperCase())} x${o.qty}</span>
       <span class="tag amt">&#8377;${o.amount}</span>
       <span class="tag ${o.status==="Verified"?"ok":"warn"}">${o.status==="Verified"?"VERIFIED":"PENDING"}</span>
+      ${o.confirmed?`<span class="tag dim">WA SENT</span>`:""}
       ${o.packed?`<span class="tag dim">PACKED</span>`:""}
       ${o.collected?`<span class="tag dim">COLLECTED</span>`:""}
       ${o.cancelled?`<span class="tag warn">CANCELLED</span>`:""}
     </div>
-    <div class="picks">${picks}<br>PAY: ${esc(o.proof)} &nbsp; WA: ${esc(o.phone)}</div>
+    <div class="picks">${picks}<br>PAY: ${esc(o.proof)} &nbsp; WA: ${esc(o.phone)}${o.notes?`<br>NOTE: ${esc(o.notes)}`:""}</div>
     <div class="acts">
       <button class="act ${o.status==="Verified"?"done":"primary"}" data-act="verify">${o.status==="Verified"?"&#10003; VERIFIED":"VERIFY"}</button>
       <button class="act ${o.packed?"done":""}" data-act="packed">${o.packed?"&#10003; PACKED":"PACKED"}</button>
       <button class="act ${o.collected?"done":""}" data-act="collected">${o.collected?"&#10003; GIVEN":"GIVEN"}</button>
       <button class="act" data-act="bill">BILL</button>
       <button class="act" data-act="wa">WHATSAPP &#10003;</button>
+      <button class="act" data-act="note">NOTE</button>
+      <button class="act" data-act="cancel" style="color:var(--oxblood)">${o.cancelled?"RESTORE":"CANCEL"}</button>
     </div>
   </div>`;
 }
@@ -288,6 +309,29 @@ $("orders-list").addEventListener("click", async e => {
     o.confirmed = "yes"; api({ action:"update", orderId:id, set:{ confirmed:true } });
     return;
   }
+  if(act === "note"){
+    const v = prompt("Note for " + o.name + " (packing note, refund txn id, etc.)", o.notes || "");
+    if(v === null) return;
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+    const r = await api({ action:"update", orderId:id, set:{ note:v } }).catch(()=>({ok:false}));
+    if(r.ok) o.notes = v; else alert("Note failed - check internet and retry.");
+    renderOrders();
+    return;
+  }
+  if(act === "cancel"){
+    if(o.cancelled){
+      if(!confirm("Restore cancelled order " + o.id + " (" + o.name + ")?")) return;
+    } else {
+      if(!confirm("Cancel order " + o.id + " (" + o.name + ")?" + (o.status==="Verified" ? "\n\nThis order is PAID - refund via UPI, then save the refund txn id with NOTE." : ""))) return;
+    }
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+    const r = await api({ action:"update", orderId:id, set:{ cancelled: !o.cancelled } }).catch(()=>({ok:false}));
+    if(r.ok) o.cancelled = o.cancelled ? "" : "yes"; else alert("Update failed - check internet and retry.");
+    renderOrders();
+    return;
+  }
+  if(act === "verify" && o.status === "Verified" &&
+     !confirm("Un-verify PAID order " + o.id + " (" + o.name + ")? It goes back to Pending.")) return;
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
   let set = {};
   if(act === "verify") set = { status: o.status==="Verified" ? "Pending" : "Verified" };
@@ -303,10 +347,90 @@ $("orders-list").addEventListener("click", async e => {
   }
   renderOrders();
 });
-$("btn-reload").addEventListener("click", async () => {
-  const d = await api({ action:"orders" });
-  if(d.ok){ ORDERS = d.rows.map(rowToOrder); initFilters(); renderOrders(); }
+async function reloadOrders(){
+  const d = await api({ action:"orders" }).catch(()=>({ok:false}));
+  if(d.ok){
+    ORDERS = d.rows.map(rowToOrder);
+    lastLoad = Date.now();
+    initFilters(); renderOrders();
+    if(!$("cook-host").classList.contains("hidden")) renderCook();
+  }
+}
+$("btn-reload").addEventListener("click", reloadOrders);
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible" && KEY && lastLoad && Date.now() - lastLoad > 60000) reloadOrders();
 });
+$("search-in").addEventListener("input", () => { state.q = $("search-in").value; renderOrders(); });
+$("btn-logout").addEventListener("click", () => {
+  if(!confirm("Log out of admin on this phone?")) return;
+  try{ localStorage.removeItem(KEYSTORE); }catch(e){}
+  location.reload();
+});
+
+// ---------- cook sheet ----------
+function cookData(){
+  const day = ORDERS.filter(o=>(!state.date || o.date===state.date) && !o.cancelled);
+  const ver = day.filter(o=>o.status==="Verified");
+  const boxes = ver.reduce((s,o)=>s+o.qty,0);
+  const veg = ver.filter(o=>o.base==="Veg").reduce((s,o)=>s+o.qty,0);
+  const slots = {}, camps = {};
+  ver.forEach(o=>{
+    camps[o.campus] = (camps[o.campus]||0) + o.qty;
+    o.comps.forEach(c=>{
+      const name = String(c[1]||"").trim();
+      if(!name) return;
+      slots[c[0]] = slots[c[0]] || {};
+      slots[c[0]][name] = (slots[c[0]][name]||0) + o.qty;
+    });
+  });
+  return { pending: day.length - ver.length, boxes, veg, slots, camps };
+}
+function cookRows(d, tr){
+  return ["C1","C2","C3","C4","C5","C6"].map(s=>{
+    const m = d.slots[s];
+    if(!m) return "";
+    return tr(s, Object.entries(m).sort((a,b)=>b[1]-a[1]));
+  }).join("");
+}
+function renderCook(){
+  const d = cookData();
+  const body = cookRows(d, (s, items) =>
+    `<div class="slotlabel" style="margin-top:12px">${s}</div>` +
+    items.map(([n,q])=>`<div class="crow"><span>${esc(n)}</span><b>&#215; ${q}</b></div>`).join(""));
+  $("cook-host").innerHTML = `<div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <div style="font-family:var(--display);font-size:17px">Cook sheet &#183; ${esc(state.date||"all dates")}</div>
+      <button class="act" id="cook-close">&#10005; CLOSE</button>
+    </div>
+    <p style="font-family:var(--mono);font-size:11px;color:var(--grey);margin-top:4px">Verified orders only${d.pending?` &#183; ${d.pending} pending NOT counted`:""}</p>
+    <div class="tagrow" style="margin-top:8px">
+      <span class="tag amt">${d.boxes} BOXES</span>
+      <span class="tag veg">VEG ${d.veg}</span>
+      <span class="tag nonveg">NON-VEG ${d.boxes-d.veg}</span>
+      ${Object.entries(d.camps).sort().map(([c,n])=>`<span class="tag">${esc(c)} ${n}</span>`).join("")}
+    </div>
+    ${body || `<p style="margin-top:12px;color:var(--grey)">No verified orders for this date yet.</p>`}
+    <div class="toolbar"><button class="btn small ghost" id="cook-print">&#128424;&#65039; PRINT</button></div>
+  </div>`;
+  $("cook-host").classList.remove("hidden");
+  $("cook-close").onclick = () => $("cook-host").classList.add("hidden");
+  $("cook-print").onclick = () => printCook(d);
+}
+function printCook(d){
+  const rows = cookRows(d, (s, items) =>
+    items.map(([n,q])=>`<tr><td>${s} &nbsp;${esc(n)}</td><td>&#215; ${q}</td></tr>`).join(""));
+  $("print-area").innerHTML = `<div class="bill">
+    <div class="bhead"><div class="bw">LUNCHO. COOK SHEET</div><div class="bno">${esc(state.date||"ALL DATES")}</div></div>
+    <table>
+      <tr><td><b>${d.boxes} boxes</b> &nbsp; Veg ${d.veg} / Non-veg ${d.boxes-d.veg}</td><td></td></tr>
+      ${Object.entries(d.camps).sort().map(([c,n])=>`<tr><td>${esc(c)}</td><td>${n} boxes</td></tr>`).join("")}
+      ${rows}
+    </table>
+    <div class="bfoot">Verified orders only &#183; luncho.in/admin</div>
+  </div>`;
+  setTimeout(()=>window.print(), 150);
+}
+$("btn-cook").addEventListener("click", renderCook);
 $("btn-labels").addEventListener("click", () => {
   let u = `labels.html?auto=1&print=1&date=${encodeURIComponent(state.date)}`;
   if(state.campus) u += `&campus=${encodeURIComponent(state.campus)}`;
