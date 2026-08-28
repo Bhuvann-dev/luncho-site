@@ -83,7 +83,12 @@
   .mrow input,.mrow select{padding:9px;border:1px solid #C9C2AD;border-radius:6px;background:#fff;font-size:14px;width:100%}
   .mrow .note-in{grid-column:1/-1}
   .mrow .foot{display:flex;gap:6px;align-items:center;margin-top:7px;flex-wrap:wrap}
-  .mrow label.sw{font-family:var(--mono);font-size:10.5px;font-weight:700;display:flex;gap:5px;align-items:center;margin-right:auto}
+  .mrow label.sw{font-family:var(--mono);font-size:10.5px;font-weight:700;display:flex;gap:5px;align-items:center;margin-right:auto;white-space:nowrap}
+  .mrow.dirty{border:1.5px solid var(--oxblood)}
+  .dirtyflag{font-family:var(--mono);font-size:10px;color:var(--oxblood);font-weight:700;white-space:nowrap}
+  .sec h2 i{font-style:normal;color:var(--grey);font-weight:400}
+  .rupee{display:flex;align-items:center;gap:3px;font-weight:700}
+  .rupee input{width:100%}
   .slotlabel{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--grey);letter-spacing:.06em;margin-bottom:5px}
   .addbar{display:flex;gap:6px;margin-top:8px}
   .addbar input{flex:1;min-width:0;padding:10px;border:1px dashed var(--dash);border-radius:6px;background:transparent}
@@ -154,7 +159,9 @@
     <div id="v-menu" class="hidden">
       <div class="panel">
         <div id="pause-host"></div>
-        <p style="font-size:13px;color:var(--grey)">Changes go live on luncho.in within a minute. Prices here are enforced on every order.</p>
+        <p style="font-size:13px;color:var(--grey)">Changes go live on luncho.in within a minute. Prices here are enforced on every order.<br>
+        Every box has 6 parts: <b>C1-C3</b> come from the weekly menu (same for everyone), <b>C4-C6</b> the student picks.<br>
+        ಪ್ರತಿ ಬಾಕ್ಸ್‌ನಲ್ಲಿ 6 ಭಾಗ: C1-C3 ಎಲ್ಲರಿಗೂ ಒಂದೇ (ವಾರದ ಮೆನು), C4-C6 ವಿದ್ಯಾರ್ಥಿಯ ಆಯ್ಕೆ. ಬದಲಾವಣೆ ಮಾಡಿದ ಮೇಲೆ <b>SAVE</b> ಒತ್ತಿ.</p>
         <div id="menu-host"><p style="margin-top:10px"><span class="spin"></span> Loading menu...</p></div>
       </div>
     </div>
@@ -506,10 +513,12 @@ function renderPause(){
 }
 function menuRowInputs(i, r, kind){
   const active = String(r[7]).toUpperCase() !== "FALSE";
+  // BASE names ("Veg"/"Non-veg") are load-bearing: prices and the student page
+  // key off them exactly, so they are shown locked.
   let fields = `<div class="grid">
-      <input data-f="name" value="${esc(r[3])}" placeholder="Name">`;
-  if(kind === "BASE") fields += `<input data-f="price" type="number" inputmode="numeric" value="${esc(r[6])}" placeholder="&#8377;">`;
-  else if(kind === "CHOICE") fields += `<select data-f="bases"><option ${/both|,/i.test(r[5])||!r[5]?"selected":""}>Both</option><option ${String(r[5]).toLowerCase()==="veg"?"selected":""}>Veg</option><option ${/^non/i.test(r[5])?"selected":""}>Non-veg</option></select>`;
+      <input data-f="name" value="${esc(r[3])}" placeholder="Name" ${kind==="BASE"?'readonly style="background:#EDE5D2;color:var(--grey)"':""}>`;
+  if(kind === "BASE") fields += `<span class="rupee">&#8377;<input data-f="price" type="number" inputmode="numeric" value="${esc(r[6])}" placeholder="0"></span>`;
+  else if(kind === "CHOICE") fields += `<select data-f="bases"><option value="Both" ${/both|,/i.test(r[5])||!r[5]?"selected":""}>Everyone</option><option value="Veg" ${String(r[5]).toLowerCase()==="veg"?"selected":""}>Veg only</option><option value="Non-veg" ${/^non/i.test(r[5])?"selected":""}>Non-veg</option></select>`;
   else fields += `<select data-f="day">${DAYS.map(d=>`<option ${String(r[1]).slice(0,3)===d?"selected":""}>${d}</option>`).join("")}</select>`;
   fields += `<input class="note-in" data-f="note" value="${esc(r[4])}" placeholder="Note shown to students (optional)" ${kind==="FIXED"?'style="grid-column:1"':''}>`;
   if(kind === "FIXED") fields += `<select data-f="slot">${["C1","C2","C3"].map(s=>`<option ${String(r[2]).toUpperCase()===s?"selected":""}>${s}</option>`).join("")}</select>`;
@@ -517,19 +526,20 @@ function menuRowInputs(i, r, kind){
   return `<div class="mrow" data-row="${i+1}" data-kind="${kind}">
     ${fields}
     <div class="foot">
-      <label class="sw"><input type="checkbox" data-f="active" ${active?"checked":""}> ON MENU</label>
+      <label class="sw"><input type="checkbox" data-f="active" ${active?"checked":""}> ON MENU &#183; ಇದೆ</label>
       <span class="savedflash hidden">SAVED &#10003;</span>
+      <span class="dirtyflag hidden">NOT SAVED &#183; ಉಳಿಸಿಲ್ಲ</span>
       ${kind!=="BASE" ? `<button class="act" data-mact="del">&#10005;</button>` : ""}
-      <button class="act primary" data-mact="save">SAVE</button>
+      <button class="act primary" data-mact="save">SAVE &#183; ಉಳಿಸಿ</button>
     </div>
   </div>`;
 }
 function renderMenu(){
   let html = "";
-  html += `<div class="sec"><h2>PRICES (VEG / NON-VEG)</h2>`;
+  html += `<div class="sec"><h2>BOX PRICES <i>&#183; ಬೆಲೆ</i></h2>`;
   MENU.forEach((r,i)=>{ if(String(r[0]).toUpperCase()==="BASE") html += menuRowInputs(i,r,"BASE"); });
   html += `</div>`;
-  html += `<div class="sec"><h2>WEEKLY FIXED MENU (C1-C3)</h2>`;
+  html += `<div class="sec"><h2>WEEKLY MENU C1-C3 <i>&#183; ವಾರದ ಮೆನು (same for everyone)</i></h2>`;
   DAYS.forEach(day=>{
     const idx = MENU.map((r,i)=>({r,i})).filter(x=>String(x.r[0]).toUpperCase()==="FIXED" && String(x.r[1]).slice(0,3)===day);
     if(idx.length){
@@ -546,12 +556,37 @@ function renderMenu(){
     <button class="act primary" data-mact="addfix">ADD</button>
   </div></div>`;
   ["C4","C5","C6"].forEach(slot=>{
-    html += `<div class="sec"><h2>STUDENT CHOICES - ${slot}</h2>`;
+    html += `<div class="sec"><h2>STUDENT PICKS ${slot} <i>&#183; ವಿದ್ಯಾರ್ಥಿ ಆಯ್ಕೆ</i></h2>`;
     MENU.forEach((r,i)=>{ if(String(r[0]).toUpperCase()==="CHOICE" && String(r[2]).toUpperCase()===slot) html += menuRowInputs(i,r,"CHOICE"); });
     html += `<div class="addbar"><input placeholder="New ${slot} item name" data-addslot="${slot}"><button class="act primary" data-mact="add" data-slot="${slot}">ADD</button></div></div>`;
   });
   $("menu-host").innerHTML = html;
 }
+// Unsaved-edit protection: any change marks the row NOT SAVED; operations
+// that rebuild the list (add/delete/day move) warn before wiping those edits.
+function markDirty(e){
+  const m = e.target.closest(".mrow");
+  if(!m || m.classList.contains("dirty")) return;
+  m.classList.add("dirty");
+  const f = m.querySelector(".dirtyflag");
+  if(f) f.classList.remove("hidden");
+}
+$("menu-host").addEventListener("input", markDirty);
+$("menu-host").addEventListener("change", markDirty);
+function markClean(m){
+  m.classList.remove("dirty");
+  const f = m.querySelector(".dirtyflag");
+  if(f) f.classList.add("hidden");
+}
+function confirmLoseEdits(except){
+  const dirty = [...document.querySelectorAll(".mrow.dirty")].filter(m => m !== except);
+  if(!dirty.length) return true;
+  return confirm(dirty.length + " item(s) have edits you have NOT saved - this will throw those edits away.\n\nContinue anyway? (Cancel = go back and tap SAVE on the red items first)");
+}
+window.addEventListener("beforeunload", e => {
+  if(document.querySelector(".mrow.dirty")){ e.preventDefault(); e.returnValue = ""; }
+});
+
 $("menu-host") && document.addEventListener("click", async e => {
   const btn = e.target.closest("[data-mact]");
   if(!btn) return;
@@ -561,6 +596,7 @@ $("menu-host") && document.addEventListener("click", async e => {
     const input = document.querySelector(`input[data-addslot="${slot}"]`);
     const name = (input.value||"").trim();
     if(!name) return;
+    if(!confirmLoseEdits(null)) return;
     btn.disabled = true;
     const res = await api({ action:"menuset", op:"add", values:["CHOICE","",slot,name,"","Both","","TRUE"] });
     btn.disabled = false;
@@ -570,6 +606,7 @@ $("menu-host") && document.addEventListener("click", async e => {
   if(mact === "addfix"){
     const name = ($("addfix-name").value||"").trim();
     if(!name) return;
+    if(!confirmLoseEdits(null)) return;
     btn.disabled = true;
     const res = await api({ action:"menuset", op:"add", values:["FIXED", $("addfix-day").value, $("addfix-slot").value, name, "", "", "", "TRUE"] });
     btn.disabled = false;
@@ -583,6 +620,7 @@ $("menu-host") && document.addEventListener("click", async e => {
   const orig = MENU[row-1];
   if(mact === "del"){
     if(!confirm("Remove this item from the menu sheet?")) return;
+    if(!confirmLoseEdits(mrow)) return;
     btn.disabled = true;
     const res = await api({ action:"menuset", op:"delete", row });
     if(res.ok){ await loadMenu(); } else { btn.disabled=false; alert("Delete failed: " + res.error); }
@@ -598,12 +636,15 @@ $("menu-host") && document.addEventListener("click", async e => {
       kind==="CHOICE" ? get("bases").value : String(orig[5]),
       kind==="BASE" ? (parseInt(get("price").value,10) || orig[6]) : String(orig[6]),
       get("active").checked ? "TRUE" : "FALSE"];
+    const moved = kind==="FIXED" && (vals[1] !== String(orig[1]) || vals[2] !== String(orig[2]));
+    if(moved && !confirmLoseEdits(mrow)) return; // regrouping rebuilds the list
     btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
     const res = await api({ action:"menuset", op:"update", row, values: vals });
-    btn.disabled = false; btn.textContent = "SAVE";
+    btn.disabled = false; btn.innerHTML = "SAVE &#183; ಉಳಿಸಿ";
     if(res.ok){
       MENU[row-1] = vals;
-      if(kind === "FIXED"){ renderMenu(); return; } // regroup under the (possibly new) day
+      markClean(mrow);
+      if(moved){ renderMenu(); return; } // regroup under the new day/slot
       const flash = mrow.querySelector(".savedflash");
       flash.classList.remove("hidden");
       setTimeout(()=>flash.classList.add("hidden"), 1600);
