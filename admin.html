@@ -38,6 +38,11 @@
   .btn:disabled{opacity:.5}
   .msg{color:var(--oxblood);font-weight:700;font-size:13px;margin-top:8px}
   /* stats */
+  .revbar{display:flex;gap:8px;margin-bottom:10px}
+  .rev{flex:1;background:var(--ink);border-radius:8px;padding:10px 8px;text-align:center;color:var(--cream)}
+  .rev b{display:block;font-family:var(--display);font-size:19px;color:var(--yolk)}
+  .rev span{font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.06em}
+  .rev small{display:block;font-family:var(--mono);font-size:9px;color:#B8AE97;margin-top:2px}
   .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
   .stat{background:var(--paper);border:1px solid #C9C2AD;border-radius:8px;padding:8px 6px;text-align:center}
   .stat b{display:block;font-family:var(--display);font-size:18px}
@@ -118,6 +123,7 @@
 
     <div id="v-orders">
       <div class="panel">
+        <div class="revbar" id="revbar"></div>
         <div class="stats" id="stats"></div>
         <div class="chips" id="date-chips"></div>
         <div class="chips" id="campus-chips"></div>
@@ -207,7 +213,21 @@ function chipRow(el, items, cur, onpick, allLabel){
     items.map(v=>`<button class="chip ${cur===v?"on":""}" data-v="${esc(v)}">${esc(v)}</button>`).join("");
   el.onclick = e => { const c = e.target.closest(".chip"); if(c){ onpick(c.dataset.v); renderOrders(); } };
 }
+function renderRevenue(){
+  // ts is "dd/MM/yyyy HH:mm" from the sheet; revenue = verified, non-cancelled orders
+  const now = new Date();
+  const mm = String(now.getMonth()+1).padStart(2,"0"), yyyy = String(now.getFullYear());
+  const paid = ORDERS.filter(o=>!o.cancelled && o.status==="Verified");
+  const month = paid.filter(o=>String(o.ts).slice(3,5)===mm && String(o.ts).slice(6,10)===yyyy);
+  const mRev = month.reduce((s,o)=>s+o.amount,0), mBoxes = month.reduce((s,o)=>s+o.qty,0);
+  const aRev = paid.reduce((s,o)=>s+o.amount,0);
+  const mName = now.toLocaleString("en-IN",{month:"short"}).toUpperCase();
+  $("revbar").innerHTML =
+    `<div class="rev"><b>&#8377;${mRev}</b><span>${mName} REVENUE</span><small>${month.length} orders &#183; ${mBoxes} boxes</small></div>` +
+    `<div class="rev"><b>&#8377;${aRev}</b><span>ALL TIME</span><small>${paid.length} paid orders</small></div>`;
+}
 function renderOrders(){
+  renderRevenue();
   const list = filtered().filter(o=>!o.cancelled);
   const cancelled = filtered().filter(o=>o.cancelled);
   const boxes = list.reduce((s,o)=>s+o.qty,0);
