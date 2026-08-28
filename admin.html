@@ -46,8 +46,19 @@
   .rev b{display:block;font-family:var(--display);font-size:19px;color:var(--yolk)}
   .rev span{font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.06em}
   .rev small{display:block;font-family:var(--mono);font-size:9px;color:#B8AE97;margin-top:2px}
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-  #search-in{width:100%;margin-top:10px;padding:11px 13px;border:1px solid #C9C2AD;border-radius:8px;background:var(--paper);font-size:15px}
+  .stats-big{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .stat.big b{font-size:28px}
+  .stat.big small{display:block;font-family:var(--mono);font-size:9.5px;color:var(--grey);margin-top:3px}
+  .stat.big.warn b{color:var(--oxblood)}
+  .bdrow{font-family:var(--mono);font-size:10.5px;color:var(--grey);margin-top:8px;letter-spacing:.03em}
+  .bdrow b{color:var(--ink);margin-right:8px;font-size:9px;letter-spacing:.08em}
+  /* sticky find/filter bar - follows you into the order list */
+  #fbar-wrap{position:sticky;top:52px;z-index:15;background:#E9E4D6;padding:8px 0;margin-top:12px}
+  #fbar{display:flex;gap:8px}
+  #search-in{flex:1;min-width:0;padding:11px 13px;border:1px solid #C9C2AD;border-radius:8px;background:var(--paper);font-size:15px}
+  #btn-filters{border:1px solid #C9C2AD;border-radius:8px;background:var(--paper);font-family:var(--mono);font-size:11px;font-weight:700;padding:0 14px;cursor:pointer;white-space:nowrap;letter-spacing:.04em}
+  #btn-filters.active{background:var(--ink);border-color:var(--ink);color:var(--yolk)}
+  #fpanel{background:var(--cream);border-radius:10px;padding:2px 12px 12px;margin-top:8px;box-shadow:0 4px 16px rgba(38,34,30,.10)}
   .crow{display:flex;justify-content:space-between;background:var(--paper);border:1px solid #C9C2AD;border-radius:7px;padding:9px 11px;margin-top:6px;font-size:14px}
   #upd{margin-left:auto;align-self:center;font-family:var(--mono);font-size:10px;color:var(--grey)}
   #btn-logout{border:1.5px solid var(--ink);background:transparent;border-radius:6px;font-family:var(--mono);font-size:10px;font-weight:700;padding:6px 9px;cursor:pointer;letter-spacing:.05em}
@@ -71,6 +82,8 @@
   .tag.ok{background:var(--leaf)} .tag.warn{background:#fff;color:var(--oxblood);border:1.5px solid var(--oxblood)}
   .tag.dim{background:#EDE5D2;color:var(--grey)}
   .picks{font-family:var(--mono);font-size:11px;color:var(--grey);margin-top:7px;line-height:1.6}
+  .picks .pk{color:var(--ink)}
+  .picks .pf{opacity:.6;font-size:10px}
   .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
   .act{border:1px solid #C9C2AD;border-radius:7px;background:var(--cream);font-family:var(--mono);font-size:11px;font-weight:700;padding:9px 11px;cursor:pointer;letter-spacing:.03em}
   .act.primary{background:var(--yolk);border-color:var(--yolk)}
@@ -139,17 +152,25 @@
     <div id="v-orders">
       <div class="panel">
         <div class="revbar" id="revbar"></div>
-        <div class="stats" id="stats"></div>
-        <input id="search-in" placeholder="&#128269; Search name / phone / order no." autocomplete="off">
-        <div class="chips" id="date-chips"></div>
-        <div class="chips" id="campus-chips"></div>
-        <div class="chips" id="status-chips"></div>
+        <div class="stats-big" id="stats-big"></div>
+        <div id="stats-bd"></div>
         <div class="toolbar">
           <button class="btn small" id="btn-cook">&#127858; COOK SHEET</button>
           <button class="btn small" id="btn-labels">&#127991;&#65039; PRINT LABELS</button>
           <button class="btn small ghost" id="btn-bills">&#129534; PRINT BILLS</button>
           <button class="btn small ghost" id="btn-reload">&#8635; REFRESH</button>
           <span id="upd"></span>
+        </div>
+      </div>
+      <div id="fbar-wrap">
+        <div id="fbar">
+          <input id="search-in" placeholder="&#128269; Search name / phone / order no." autocomplete="off">
+          <button id="btn-filters">FILTERS &#9662;</button>
+        </div>
+        <div id="fpanel" class="hidden">
+          <div class="chips" id="date-chips"></div>
+          <div class="chips" id="campus-chips"></div>
+          <div class="chips" id="status-chips"></div>
         </div>
       </div>
       <div id="cook-host" class="hidden"></div>
@@ -302,27 +323,32 @@ function renderOrders(){
   const ver = list.filter(o=>o.status==="Verified");
   const veg = list.filter(o=>o.base==="Veg").reduce((s,o)=>s+o.qty,0);
   const byDate = ORDERS.filter(o=>(!state.date || o.date===state.date) && !o.cancelled);
-  $("stats").innerHTML =
-    `<div class="stat"><b>${list.length}</b><span>ORDERS</span></div>` +
-    `<div class="stat"><b>${boxes}</b><span>BOXES</span></div>` +
-    `<div class="stat"><b>${list.length-ver.length}</b><span>PENDING</span></div>` +
-    `<div class="stat"><b>&#8377;${ver.reduce((s,o)=>s+o.amount,0)}</b><span>VERIFIED &#8377;</span></div>` +
-    `<div class="stat"><b>${veg}</b><span>VEG</span></div>` +
-    `<div class="stat"><b>${boxes-veg}</b><span>NON-VEG</span></div>` +
-    uniq(byDate.map(o=>o.campus)).sort().map(c=>{
-      const n = byDate.filter(o=>o.campus===c).reduce((s,o)=>s+o.qty,0);
-      return `<div class="stat"><b>${n}</b><span>${esc(c)}</span></div>`;
-    }).join("");
+  const pending = list.length - ver.length;
+  $("stats-big").innerHTML =
+    `<div class="stat big"><b>${list.length}</b><span>ORDERS</span><small>${boxes} boxes</small></div>` +
+    `<div class="stat big ${pending?"warn":""}"><b>${pending}</b><span>PENDING PAYMENT</span><small>&#8377;${ver.reduce((s,o)=>s+o.amount,0)} verified</small></div>`;
+  const campusStr = uniq(byDate.map(o=>o.campus)).sort().map(c=>
+    `${esc(c)} ${byDate.filter(o=>o.campus===c).reduce((s,o)=>s+o.qty,0)}`).join(" &#183; ");
+  $("stats-bd").innerHTML =
+    `<div class="bdrow"><b>BOXES</b>VEG ${veg} &#183; NON-VEG ${boxes-veg}</div>` +
+    `<div class="bdrow"><b>COLLEGES</b>${campusStr || "&#8212;"}</div>`;
   chipRow($("date-chips"), uniq(ORDERS.map(o=>o.date)).reverse(), state.date, v=>state.date=v, "ALL DATES");
   chipRow($("campus-chips"), uniq(ORDERS.map(o=>o.campus)).sort(), state.campus, v=>state.campus=v, "ALL COLLEGES");
   chipRow($("status-chips"), ["Pending","Verified"], state.status, v=>state.status=v, "ALL STATUS");
+  updateFilterBtn();
   $("upd").textContent = lastLoad ? "updated " + new Date(lastLoad).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}) : "";
   $("orders-list").innerHTML = list.concat(cancelled).map(cardHTML).join("") ||
     `<div class="panel" style="text-align:center;color:var(--grey)">No orders match.</div>`;
 }
 function cardHTML(o){
   const cls = o.base==="Veg" ? "veg" : "nonveg";
-  const picks = o.comps.map(c=>`<span>${c[0]} ${esc(c[1])}</span>`).join(" &nbsp;&#183;&nbsp; ");
+  // The student's own picks (C4-C6) are what the kitchen scans for - they come
+  // first and bold; the fixed compartments are the same for everyone, so dim.
+  const picks =
+    o.comps.filter(c=>/C[456]/.test(c[0])).map(c=>`<b class="pk">${c[0]} ${esc(c[1])}</b>`).join(" &nbsp;&#183;&nbsp; ") +
+    `<br><span class="pf">` +
+    o.comps.filter(c=>/C[123]/.test(c[0])).map(c=>`${c[0]} ${esc(c[1])}`).join(" &#183; ") +
+    `</span>`;
   return `<div class="card ${o.cancelled?"cancelled":""}" data-id="${esc(o.id)}">
     <div class="card-top"><b>${esc(o.name)}</b><span class="oid">No. ${esc(o.id)}</span></div>
     <div class="tagrow">
@@ -421,6 +447,16 @@ document.addEventListener("visibilitychange", () => {
   if(document.visibilityState === "visible" && KEY && lastLoad && Date.now() - lastLoad > 60000) reloadOrders();
 });
 $("search-in").addEventListener("input", () => { state.q = $("search-in").value; renderOrders(); });
+function updateFilterBtn(){
+  const n = (state.campus ? 1 : 0) + (state.status ? 1 : 0);
+  const open = !$("fpanel").classList.contains("hidden");
+  $("btn-filters").innerHTML = "FILTERS" + (n ? ` (${n})` : "") + " " + (open ? "&#9652;" : "&#9662;");
+  $("btn-filters").classList.toggle("active", n > 0);
+}
+$("btn-filters").addEventListener("click", () => {
+  $("fpanel").classList.toggle("hidden");
+  updateFilterBtn();
+});
 $("btn-logout").addEventListener("click", () => {
   if(!confirm("Log out of admin on this phone?")) return;
   try{ localStorage.removeItem(KEYSTORE); localStorage.removeItem(CACHE_ORDERS); localStorage.removeItem(CACHE_MENU); }catch(e){}
