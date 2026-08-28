@@ -170,6 +170,12 @@
 <script>
 const API = "https://script.google.com/macros/s/AKfycbyxQ-BmhGVnRqsUowCi52AK9GZIXbHtS8MY1hQOyg2JoM2jhtpflHU609irXOi5cOZwGA/exec";
 const KEYSTORE = "luncho.labelkey";
+// Instant-open: last seen orders/menu are cached on this device and rendered
+// immediately; the network refresh replaces them in the background.
+const CACHE_ORDERS = "luncho.admin.cache.orders";
+const CACHE_MENU = "luncho.admin.cache.menu";
+function readCache(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
+function writeCache(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 const PICKUP = "12:40";
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
@@ -193,28 +199,57 @@ function rowToOrder(r){
   };
 }
 // ---------- login ----------
+function showApp(){
+  $("login").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  $("btn-logout").classList.remove("hidden");
+}
+function bootMenuFromCache(){
+  if(MENU.length) return;
+  const mc = readCache(CACHE_MENU);
+  if(mc && mc.rows && mc.rows.length){
+    MENU = mc.rows; MPAUSED = !!mc.paused;
+    renderPause(); renderMenu();
+  }
+}
 async function login(showErrors){
+  let data;
   try{
-    const data = await api({ action:"orders", days:30 });
-    if(!data.ok) throw new Error(data.error);
-    try{ localStorage.setItem(KEYSTORE, KEY); }catch(e){}
-    ORDERS = data.rows.map(rowToOrder);
-    REV = data.rev || null;
-    lastLoad = Date.now();
-    $("login").classList.add("hidden");
-    $("app").classList.remove("hidden");
-    $("btn-logout").classList.remove("hidden");
-    initFilters();
-    renderOrders();
+    data = await api({ action:"orders", days:30 });
   }catch(err){
-    KEY = "";
-    try{ localStorage.removeItem(KEYSTORE); }catch(e){}
+    // Network problem - do NOT log out; keep whatever cached view is showing.
     if(showErrors){
       $("login-msg").textContent = "Could not open: " + err.message;
       $("login-msg").classList.remove("hidden");
+    } else if(!ORDERS.length){
+      $("login").classList.remove("hidden");
+    }
+    return;
+  }
+  if(!data.ok){
+    // Bad key - clear everything and show login.
+    KEY = "";
+    try{ localStorage.removeItem(KEYSTORE); localStorage.removeItem(CACHE_ORDERS); localStorage.removeItem(CACHE_MENU); }catch(e){}
+    $("app").classList.add("hidden");
+    $("btn-logout").classList.add("hidden");
+    if(showErrors){
+      $("login-msg").textContent = "Could not open: " + data.error;
+      $("login-msg").classList.remove("hidden");
     }
     $("login").classList.remove("hidden");
+    return;
   }
+  try{ localStorage.setItem(KEYSTORE, KEY); }catch(e){}
+  ORDERS = data.rows.map(rowToOrder);
+  REV = data.rev || null;
+  lastLoad = Date.now();
+  writeCache(CACHE_ORDERS, { rows: data.rows, rev: data.rev, ts: lastLoad });
+  showApp();
+  initFilters();
+  renderOrders();
+  // Prefetch the menu now so the MENU tab is ready before it is tapped.
+  bootMenuFromCache();
+  loadMenu();
 }
 $("btn-login").addEventListener("click", () => { KEY = $("key-in").value.trim(); if(KEY) login(true); });
 $("key-in").addEventListener("keydown", e => { if(e.key === "Enter") $("btn-login").click(); });
@@ -376,6 +411,7 @@ async function reloadOrders(){
     ORDERS = d.rows.map(rowToOrder);
     REV = d.rev || null;
     lastLoad = Date.now();
+    writeCache(CACHE_ORDERS, { rows: d.rows, rev: d.rev, ts: lastLoad });
     initFilters(); renderOrders();
     if(!$("cook-host").classList.contains("hidden")) renderCook();
   }
@@ -387,7 +423,7 @@ document.addEventListener("visibilitychange", () => {
 $("search-in").addEventListener("input", () => { state.q = $("search-in").value; renderOrders(); });
 $("btn-logout").addEventListener("click", () => {
   if(!confirm("Log out of admin on this phone?")) return;
-  try{ localStorage.removeItem(KEYSTORE); }catch(e){}
+  try{ localStorage.removeItem(KEYSTORE); localStorage.removeItem(CACHE_ORDERS); localStorage.removeItem(CACHE_MENU); }catch(e){}
   location.reload();
 });
 
@@ -487,13 +523,28 @@ function printBills(list){
 
 // ---------- menu editor ----------
 const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat"];
+function saveMenuCache(){ writeCache(CACHE_MENU, { rows: MENU, paused: MPAUSED, ts: Date.now() }); }
+let menuLoading = false;
 async function loadMenu(){
-  const d = await api({ action:"menuget" });
-  if(!d.ok){ $("menu-host").innerHTML = `<p class="msg">Could not load menu: ${esc(d.error)}</p>`; return; }
-  MENU = d.rows;
-  MPAUSED = !!d.paused;
-  renderPause();
-  renderMenu();
+  if(menuLoading) return;
+  menuLoading = true;
+  try{
+    const d = await api({ action:"menuget" }).catch(()=>({ok:false, error:"network"}));
+    if(!d.ok){
+      if(!MENU.length) $("menu-host").innerHTML = `<p class="msg">Could not load menu: ${esc(d.error)}</p>`;
+      return;
+    }
+    MPAUSED = !!d.paused;
+    renderPause();
+    const changed = JSON.stringify(d.rows) !== JSON.stringify(MENU);
+    MENU = d.rows;
+    saveMenuCache();
+    // Never clobber rows the owner is mid-editing (NOT SAVED).
+    const rendered = !!document.querySelector("#menu-host .mrow");
+    if((changed || !rendered) && !document.querySelector(".mrow.dirty")) renderMenu();
+  } finally {
+    menuLoading = false;
+  }
 }
 function renderPause(){
   $("pause-host").innerHTML = MPAUSED
@@ -506,7 +557,7 @@ function renderPause(){
     if(!confirm(msg)) return;
     $("btn-pause").disabled = true;
     const r = await api({ action:"pause", on: !MPAUSED }).catch(()=>({ok:false}));
-    if(r.ok){ MPAUSED = !!r.paused; renderPause(); }
+    if(r.ok){ MPAUSED = !!r.paused; saveMenuCache(); renderPause(); }
     else { $("btn-pause").disabled = false; alert("Failed - check internet and retry."); }
   };
 }
@@ -597,9 +648,11 @@ $("menu-host") && document.addEventListener("click", async e => {
     if(!name) return;
     if(!confirmLoseEdits(null)) return;
     btn.disabled = true;
-    const res = await api({ action:"menuset", op:"add", values:["CHOICE","",slot,name,"","Both","","TRUE"] });
+    const vals = ["CHOICE","",slot,name,"","Both","","TRUE"];
+    const res = await api({ action:"menuset", op:"add", values: vals }).catch(()=>({ok:false, error:"network"}));
     btn.disabled = false;
-    if(res.ok){ await loadMenu(); } else alert("Add failed: " + res.error);
+    // The server appends at the end, so mirror that locally - no re-fetch needed.
+    if(res.ok){ MENU.push(vals); saveMenuCache(); renderMenu(); } else alert("Add failed: " + res.error);
     return;
   }
   if(mact === "addfix"){
@@ -607,9 +660,10 @@ $("menu-host") && document.addEventListener("click", async e => {
     if(!name) return;
     if(!confirmLoseEdits(null)) return;
     btn.disabled = true;
-    const res = await api({ action:"menuset", op:"add", values:["FIXED", $("addfix-day").value, $("addfix-slot").value, name, "", "", "", "TRUE"] });
+    const vals = ["FIXED", $("addfix-day").value, $("addfix-slot").value, name, "", "", "", "TRUE"];
+    const res = await api({ action:"menuset", op:"add", values: vals }).catch(()=>({ok:false, error:"network"}));
     btn.disabled = false;
-    if(res.ok){ await loadMenu(); } else alert("Add failed: " + res.error);
+    if(res.ok){ MENU.push(vals); saveMenuCache(); renderMenu(); } else alert("Add failed: " + res.error);
     return;
   }
   const mrow = e.target.closest(".mrow");
@@ -621,8 +675,9 @@ $("menu-host") && document.addEventListener("click", async e => {
     if(!confirm("Remove this item from the menu sheet?")) return;
     if(!confirmLoseEdits(mrow)) return;
     btn.disabled = true;
-    const res = await api({ action:"menuset", op:"delete", row });
-    if(res.ok){ await loadMenu(); } else { btn.disabled=false; alert("Delete failed: " + res.error); }
+    const res = await api({ action:"menuset", op:"delete", row }).catch(()=>({ok:false, error:"network"}));
+    if(res.ok){ MENU.splice(row-1, 1); saveMenuCache(); renderMenu(); }
+    else { btn.disabled=false; alert("Delete failed: " + res.error); }
     return;
   }
   if(mact === "save"){
@@ -642,6 +697,7 @@ $("menu-host") && document.addEventListener("click", async e => {
     btn.disabled = false; btn.textContent = "SAVE";
     if(res.ok){
       MENU[row-1] = vals;
+      saveMenuCache();
       markClean(mrow);
       if(moved){ renderMenu(); return; } // regroup under the new day/slot
       const flash = mrow.querySelector(".savedflash");
@@ -655,7 +711,20 @@ $("menu-host") && document.addEventListener("click", async e => {
 $("tab-orders").addEventListener("click", ()=>{ state.tab="orders"; $("tab-orders").classList.add("on"); $("tab-menu").classList.remove("on"); $("v-orders").classList.remove("hidden"); $("v-menu").classList.add("hidden"); });
 $("tab-menu").addEventListener("click", ()=>{ state.tab="menu"; $("tab-menu").classList.add("on"); $("tab-orders").classList.remove("on"); $("v-menu").classList.remove("hidden"); $("v-orders").classList.add("hidden"); if(!MENU.length) loadMenu(); });
 try{ KEY = localStorage.getItem(KEYSTORE) || ""; }catch(e){}
-if(KEY) login(false);
+if(KEY){
+  // Instant open: render the last seen data immediately, refresh in background.
+  const c = readCache(CACHE_ORDERS);
+  if(c && c.rows){
+    ORDERS = c.rows.map(rowToOrder);
+    REV = c.rev || null;
+    lastLoad = c.ts || 0;
+    showApp();
+    initFilters();
+    renderOrders();
+    bootMenuFromCache();
+  }
+  login(false);
+}
 </script>
 </body>
 </html>
