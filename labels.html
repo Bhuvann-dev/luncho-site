@@ -80,20 +80,25 @@
   </div>
   <div class="panel">
     <p class="steps">
-      <b>1</b> Open the <b>Orders_V2</b> sheet after verifying payments.
-      <b>2</b> Select tomorrow's rows - click the row numbers so entire rows are copied (the header row is fine to include).
-      <b>3</b> Copy (Ctrl+C), paste below, then <b>MAKE LABELS</b> and print (Ctrl+P). One label per box - qty 2 makes 2 labels.
+      Tap <b>LOAD ORDERS</b> - it pulls everything from the Orders_V2 sheet (owner key asked once on this device).
+      Filter by date/college/type, then <b>PRINT</b>. One label per box - qty 2 makes 2 labels.
+      Paste rows below only as a manual fallback.
     </p>
-    <textarea id="paste" placeholder="Paste sheet rows here..." spellcheck="false"></textarea>
     <div class="row">
-      <button class="btn" id="btn-make" type="button">MAKE LABELS</button>
+      <button class="btn" id="btn-fetch" type="button">LOAD ORDERS</button>
       <button class="btn ink" id="btn-print" type="button">PRINT</button>
       <label><input type="checkbox" id="only-verified" checked> ONLY "VERIFIED" ROWS</label>
     </div>
     <div class="row" id="filter-row" hidden>
+      <label>DATE <select id="f-date"><option value="">ALL</option></select></label>
       <label>COLLEGE <select id="f-campus"><option value="">ALL</option></select></label>
       <label>TYPE <select id="f-base"><option value="">ALL</option></select></label>
     </div>
+    <details style="margin-top:12px">
+      <summary style="font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--grey);cursor:pointer">MANUAL PASTE (FALLBACK)</summary>
+      <textarea id="paste" placeholder="Paste sheet rows here..." spellcheck="false"></textarea>
+      <div class="row"><button class="btn" id="btn-make" type="button">MAKE LABELS FROM PASTE</button></div>
+    </details>
     <p class="msg" id="msg"></p>
     <div class="summary" id="summary">
       <h2>PACKING SUMMARY</h2>
@@ -129,6 +134,7 @@ function parseRows(text){
 // Filters: to add more later (year / sem / branch once those columns exist),
 // add the column to COLS + parseRows, a <select> in #filter-row, and one entry here.
 const FILTERS = [
+  { sel:"f-date",   key:"date" },
   { sel:"f-campus", key:"campus" },
   { sel:"f-base",   key:"base" }
 ];
@@ -203,6 +209,50 @@ function makeLabels(){
     Object.entries(perCampus).map(([k,v])=>`<span><b>${v}</b>${esc(k)}</span>`).join("");
   $("summary").classList.add("show");
 }
+// One-tap load straight from the Orders_V2 sheet via the Apps Script endpoint.
+// The owner key is asked once and kept in this browser only.
+const ENDPOINT = "https://script.google.com/macros/s/AKfycbyxQ-BmhGVnRqsUowCi52AK9GZIXbHtS8MY1hQOyg2JoM2jhtpflHU609irXOi5cOZwGA/exec";
+async function fetchOrders(){
+  const msg = $("msg");
+  msg.classList.remove("show");
+  let key = "";
+  try{ key = localStorage.getItem("luncho.labelkey") || ""; }catch(e){}
+  if(!key){
+    key = (prompt("Owner key (printed in apps-script.gs as LABEL_KEY):") || "").trim();
+    if(!key) return;
+  }
+  const btn = $("btn-fetch");
+  btn.disabled = true; btn.textContent = "LOADING...";
+  try{
+    const res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "orders", key })
+    });
+    const data = await res.json();
+    if(!data.ok){
+      try{ localStorage.removeItem("luncho.labelkey"); }catch(e){}
+      throw new Error(data.error === "BAD_KEY" ? "wrong key - tap LOAD ORDERS to retry" : String(data.error));
+    }
+    try{ localStorage.setItem("luncho.labelkey", key); }catch(e){}
+    $("paste").value = data.rows
+      .map(r => r.map(c => String(c == null ? "" : c).replace(/[\t\n\r]+/g, " ")).join("\t"))
+      .join("\n");
+    if(!data.rows.length){
+      msg.textContent = "Connected - the sheet has no orders yet.";
+      msg.classList.add("show");
+      $("labels").innerHTML = ""; $("summary").classList.remove("show");
+      return;
+    }
+    makeLabels();
+  }catch(err){
+    msg.textContent = "Could not load orders: " + err.message;
+    msg.classList.add("show");
+  }finally{
+    btn.disabled = false; btn.textContent = "LOAD ORDERS";
+  }
+}
+$("btn-fetch").addEventListener("click",fetchOrders);
 $("btn-make").addEventListener("click",makeLabels);
 FILTERS.forEach(f=>$(f.sel).addEventListener("change",makeLabels));
 $("only-verified").addEventListener("change",makeLabels);
