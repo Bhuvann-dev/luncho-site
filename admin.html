@@ -160,8 +160,7 @@
       <div class="panel">
         <div id="pause-host"></div>
         <p style="font-size:13px;color:var(--grey)">Changes go live on luncho.in within a minute. Prices here are enforced on every order.<br>
-        Every box has 6 parts: <b>C1-C3</b> come from the weekly menu (same for everyone), <b>C4-C6</b> the student picks.<br>
-        ಪ್ರತಿ ಬಾಕ್ಸ್‌ನಲ್ಲಿ 6 ಭಾಗ: C1-C3 ಎಲ್ಲರಿಗೂ ಒಂದೇ (ವಾರದ ಮೆನು), C4-C6 ವಿದ್ಯಾರ್ಥಿಯ ಆಯ್ಕೆ. ಬದಲಾವಣೆ ಮಾಡಿದ ಮೇಲೆ <b>SAVE</b> ಒತ್ತಿ.</p>
+        Every box has 6 parts: <b>C1-C3</b> come from the weekly menu (same for everyone), <b>C4-C6</b> the student picks. Tap <b>SAVE</b> after every change.</p>
         <div id="menu-host"><p style="margin-top:10px"><span class="spin"></span> Loading menu...</p></div>
       </div>
     </div>
@@ -526,20 +525,20 @@ function menuRowInputs(i, r, kind){
   return `<div class="mrow" data-row="${i+1}" data-kind="${kind}">
     ${fields}
     <div class="foot">
-      <label class="sw"><input type="checkbox" data-f="active" ${active?"checked":""}> ON MENU &#183; ಇದೆ</label>
+      <label class="sw"><input type="checkbox" data-f="active" ${active?"checked":""}> ON MENU</label>
       <span class="savedflash hidden">SAVED &#10003;</span>
-      <span class="dirtyflag hidden">NOT SAVED &#183; ಉಳಿಸಿಲ್ಲ</span>
+      <span class="dirtyflag hidden">NOT SAVED</span>
       ${kind!=="BASE" ? `<button class="act" data-mact="del">&#10005;</button>` : ""}
-      <button class="act primary" data-mact="save">SAVE &#183; ಉಳಿಸಿ</button>
+      <button class="act primary" data-mact="save">SAVE</button>
     </div>
   </div>`;
 }
 function renderMenu(){
   let html = "";
-  html += `<div class="sec"><h2>BOX PRICES <i>&#183; ಬೆಲೆ</i></h2>`;
+  html += `<div class="sec"><h2>BOX PRICES</h2>`;
   MENU.forEach((r,i)=>{ if(String(r[0]).toUpperCase()==="BASE") html += menuRowInputs(i,r,"BASE"); });
   html += `</div>`;
-  html += `<div class="sec"><h2>WEEKLY MENU C1-C3 <i>&#183; ವಾರದ ಮೆನು (same for everyone)</i></h2>`;
+  html += `<div class="sec"><h2>WEEKLY MENU C1-C3 <i>(same box for everyone)</i></h2>`;
   DAYS.forEach(day=>{
     const idx = MENU.map((r,i)=>({r,i})).filter(x=>String(x.r[0]).toUpperCase()==="FIXED" && String(x.r[1]).slice(0,3)===day);
     if(idx.length){
@@ -556,7 +555,7 @@ function renderMenu(){
     <button class="act primary" data-mact="addfix">ADD</button>
   </div></div>`;
   ["C4","C5","C6"].forEach(slot=>{
-    html += `<div class="sec"><h2>STUDENT PICKS ${slot} <i>&#183; ವಿದ್ಯಾರ್ಥಿ ಆಯ್ಕೆ</i></h2>`;
+    html += `<div class="sec"><h2>STUDENT PICKS - ${slot}</h2>`;
     MENU.forEach((r,i)=>{ if(String(r[0]).toUpperCase()==="CHOICE" && String(r[2]).toUpperCase()===slot) html += menuRowInputs(i,r,"CHOICE"); });
     html += `<div class="addbar"><input placeholder="New ${slot} item name" data-addslot="${slot}"><button class="act primary" data-mact="add" data-slot="${slot}">ADD</button></div></div>`;
   });
@@ -640,7 +639,7 @@ $("menu-host") && document.addEventListener("click", async e => {
     if(moved && !confirmLoseEdits(mrow)) return; // regrouping rebuilds the list
     btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
     const res = await api({ action:"menuset", op:"update", row, values: vals });
-    btn.disabled = false; btn.innerHTML = "SAVE &#183; ಉಳಿಸಿ";
+    btn.disabled = false; btn.textContent = "SAVE";
     if(res.ok){
       MENU[row-1] = vals;
       markClean(mrow);
