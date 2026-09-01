@@ -3,3 +3,7 @@ apps-script.gs
 README.md
 review-*.png
 order-page-mobile.png
+
+# Server-side tests for apps-script.gs. Local only, like the script itself -
+# GitHub Pages would otherwise serve them. Run with: node tests/test-order.js
+tests/
