@@ -141,6 +141,8 @@
   .tl b{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.04em;white-space:nowrap;padding-top:2px}
   .closed-big{font-family:var(--display);font-size:30px;line-height:1.15;margin-top:4px}
   .kannada{font-family:'Anek Kannada',var(--body);font-weight:700;margin-top:14px;font-size:15px}
+  .policy-links{display:block;margin-top:4px}
+  .policy-links a{color:var(--grey)}
   footer{border-top:1px dashed var(--dash);margin-top:30px;padding-top:18px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--grey);line-height:1.8}
   footer a{color:var(--ink);font-weight:700}
   .sticky-bar{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);width:calc(100% - 20px);max-width:500px;display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--ink);color:var(--cream);border:0;border-radius:8px;padding:13px 16px;font-family:var(--mono);font-weight:700;cursor:pointer;box-shadow:0 6px 20px rgba(38,34,30,.35);z-index:50;padding-bottom:calc(13px + env(safe-area-inset-bottom,0px))}
@@ -277,6 +279,10 @@
       CUSTOM BENTO BOXES - NO DELIVERY FEE - MADE THIS MORNING<br>
       Problem ordering? <a id="wa-help" href="#">WhatsApp us</a><br>
       <span id="fssai-line" class="hidden">FSSAI Reg. No. - (on every box)</span>
+      <!-- Only pages that exist are linked. Terms, refunds, delivery and contact
+           go here the day they publish; the app's link check (check:links in the
+           Luncho App repo) is what stops a dead link sitting here unnoticed. -->
+      <span class="policy-links"><a href="/privacy">Privacy policy</a></span>
     </footer>
   </div>
 </main>
